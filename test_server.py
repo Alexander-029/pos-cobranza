@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import server
@@ -11,6 +13,7 @@ class CollectionTests(unittest.TestCase):
         temp_root.mkdir(exist_ok=True)
         self.folder = tempfile.TemporaryDirectory(dir=temp_root)
         server.DATA = Path(self.folder.name)
+        server.SESSIONS.clear()
         server.init_db()
 
     def tearDown(self):
@@ -53,6 +56,37 @@ class CollectionTests(unittest.TestCase):
                            "invoice_ids": ["A-2026-08"], "request_id": "wrong-provider"})
         self.assertEqual(server.pos_history(), [])
         self.assertEqual(server.lookup("ANDE", "DEMO-ANDE-001")["status"], "PENDIENTE")
+
+    def test_demo_login_and_cash_owner(self):
+        with self.assertRaises(server.BusinessError):
+            server.login(1, "0000")
+        token, employee = server.login(1, "1234")
+        self.assertEqual(employee["nombre"], "Lucía Benítez")
+        self.assertEqual(server.session_employee(token)["id"], 1)
+        server.open_cash(employee["id"])
+        with self.assertRaises(server.BusinessError):
+            server.logout(token, employee["id"])
+        with self.assertRaises(server.BusinessError):
+            server.close_cash(2)
+        with self.assertRaises(server.BusinessError):
+            server.charge({"provider": "ESSAP", "reference": "DEMO-ESSAP-001",
+                           "invoice_ids": ["E-2026-09"], "request_id": "other-employee"}, 2)
+        self.assertEqual(len(server.demo_accounts()), 4)
+        server.close_cash(employee["id"])
+        server.logout(token, employee["id"])
+        self.assertIsNone(server.session_employee(token))
+
+    def test_old_employee_table_is_migrated_without_losing_row(self):
+        legacy = Path(self.folder.name) / "legacy"
+        legacy.mkdir()
+        with closing(sqlite3.connect(legacy / "pos.db")) as db:
+            with db:
+                db.execute("CREATE TABLE empleado(id INTEGER PRIMARY KEY,nombre TEXT NOT NULL)")
+                db.execute("INSERT INTO empleado VALUES (1,'Lucía Benítez')")
+        server.DATA = legacy
+        server.init_db()
+        self.assertEqual(server.employees()[0]["nombre"], "Lucía Benítez")
+        self.assertEqual(server.login(1, "1234")[1]["id"], 1)
 
 
 if __name__ == "__main__":

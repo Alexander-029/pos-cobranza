@@ -3,18 +3,26 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
+import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.cookies import SimpleCookie
 from pathlib import Path
+from time import time
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 LOCK = threading.RLock()
+SESSIONS = {}
+SESSION_SECONDS = 8 * 60 * 60
+DEMO_PINS = {1: "1234", 2: "5678"}
 PROVIDERS = {
     "ANDE": {"name": "ANDE", "reference_label": "NIS"},
     "ESSAP": {"name": "ESSAP", "reference_label": "ISSAN"},
@@ -47,7 +55,8 @@ def init_db():
         db.execute("PRAGMA prestadora.journal_mode=DELETE")
         db.executescript("""
             CREATE TABLE IF NOT EXISTS empleado (
-                id INTEGER PRIMARY KEY, nombre TEXT NOT NULL
+                id INTEGER PRIMARY KEY, nombre TEXT NOT NULL,
+                pin_salt BLOB, pin_hash BLOB
             );
             CREATE TABLE IF NOT EXISTS caja (
                 id INTEGER PRIMARY KEY, empleado_id INTEGER NOT NULL REFERENCES empleado(id),
@@ -88,8 +97,19 @@ def init_db():
                 importe INTEGER NOT NULL, PRIMARY KEY(pago_id, factura_id)
             );
         """)
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(empleado)")}
+        if "pin_salt" not in columns:
+            db.execute("ALTER TABLE empleado ADD COLUMN pin_salt BLOB")
+        if "pin_hash" not in columns:
+            db.execute("ALTER TABLE empleado ADD COLUMN pin_hash BLOB")
         if db.execute("SELECT COUNT(*) FROM empleado").fetchone()[0] == 0:
             db.executemany("INSERT INTO empleado(id,nombre) VALUES (?,?)", [(1, "Lucía Benítez"), (2, "Diego Rojas")])
+        for employee_id, pin in DEMO_PINS.items():
+            row = db.execute("SELECT pin_hash FROM empleado WHERE id=?", (employee_id,)).fetchone()
+            if row and row["pin_hash"] is None:
+                salt = secrets.token_bytes(16)
+                digest = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt, 200_000)
+                db.execute("UPDATE empleado SET pin_salt=?,pin_hash=? WHERE id=?", (salt, digest, employee_id))
         if db.execute("SELECT COUNT(*) FROM prestadora.cuenta").fetchone()[0] == 0:
             db.executemany("INSERT INTO prestadora.cuenta VALUES (?,?,?)", [
                 ("ANDE", "DEMO-ANDE-001", "María González"),
@@ -159,7 +179,60 @@ def lookup(provider, reference):
 
 def employees():
     with connect() as db:
-        return [rowdict(r) for r in db.execute("SELECT * FROM empleado ORDER BY id")]
+        return [rowdict(r) for r in db.execute("SELECT id,nombre FROM empleado ORDER BY id")]
+
+
+def login(employee_id, pin):
+    if type(employee_id) is not int or not isinstance(pin, str):
+        raise BusinessError("Empleado o PIN incorrecto.", 401)
+    with connect() as db:
+        employee = db.execute("SELECT id,nombre,pin_salt,pin_hash FROM empleado WHERE id=?", (employee_id,)).fetchone()
+    if not employee or employee["pin_hash"] is None:
+        raise BusinessError("Empleado o PIN incorrecto.", 401)
+    digest = hashlib.pbkdf2_hmac("sha256", pin.encode(), employee["pin_salt"], 200_000)
+    if not hmac.compare_digest(digest, employee["pin_hash"]):
+        raise BusinessError("Empleado o PIN incorrecto.", 401)
+    token = secrets.token_urlsafe(32)
+    with LOCK:
+        SESSIONS[hashlib.sha256(token.encode()).hexdigest()] = (employee_id, time() + SESSION_SECONDS)
+    return token, {"id": employee["id"], "nombre": employee["nombre"]}
+
+
+def session_employee(token):
+    if not token:
+        return None
+    key = hashlib.sha256(token.encode()).hexdigest()
+    with LOCK:
+        session = SESSIONS.get(key)
+        if not session:
+            return None
+        if session[1] < time():
+            SESSIONS.pop(key, None)
+            return None
+    with connect() as db:
+        return rowdict(db.execute("SELECT id,nombre FROM empleado WHERE id=?", (session[0],)).fetchone())
+
+
+def logout(token, employee_id):
+    cash = current_cash()
+    if cash and cash["empleado_id"] == employee_id:
+        raise BusinessError("Cerrá tu caja antes de salir.", 409)
+    with LOCK:
+        SESSIONS.pop(hashlib.sha256(token.encode()).hexdigest(), None)
+
+
+def demo_accounts():
+    with connect() as db:
+        return [rowdict(r) for r in db.execute("""
+            SELECT c.prestadora,c.referencia,c.titular,
+                   SUM(CASE WHEN f.estado='PENDIENTE' THEN 1 ELSE 0 END) AS pendientes,
+                   COALESCE(SUM(CASE WHEN f.estado='PENDIENTE' THEN f.importe ELSE 0 END),0) AS total_pendiente,
+                   SUM(CASE WHEN f.estado='PAGADA' THEN 1 ELSE 0 END) AS pagadas
+            FROM prestadora.cuenta AS c
+            LEFT JOIN prestadora.factura AS f ON f.prestadora=c.prestadora AND f.referencia=c.referencia
+            GROUP BY c.prestadora,c.referencia,c.titular
+            ORDER BY c.prestadora,c.referencia
+        """)]
 
 
 def current_cash():
@@ -187,12 +260,14 @@ def open_cash(employee_id):
         ).fetchone())
 
 
-def close_cash():
+def close_cash(employee_id=None):
     with LOCK, connect() as db:
         db.execute("BEGIN IMMEDIATE")
         cash = db.execute("SELECT id FROM caja WHERE cerrada_en IS NULL").fetchone()
         if not cash:
             raise BusinessError("No hay caja abierta.", 409)
+        if employee_id is not None and db.execute("SELECT empleado_id FROM caja WHERE id=?", (cash["id"],)).fetchone()[0] != employee_id:
+            raise BusinessError("Esta caja pertenece a otro empleado.", 403)
         total, count = db.execute(
             "SELECT COALESCE(SUM(importe),0),COUNT(*) FROM cobro WHERE caja_id=?", (cash["id"],)
         ).fetchone()
@@ -200,7 +275,7 @@ def close_cash():
         return {"caja_id": cash["id"], "cobros": count, "total": total}
 
 
-def charge(payload):
+def charge(payload, employee_id=None):
     provider = payload.get("provider")
     reference = str(payload.get("reference") or "").strip().upper()
     request_id = str(payload.get("request_id") or "").strip()
@@ -213,6 +288,10 @@ def charge(payload):
         db.execute("BEGIN IMMEDIATE")
         previous = db.execute("SELECT * FROM cobro WHERE solicitud_id=?", (request_id,)).fetchone()
         if previous:
+            if employee_id is not None and db.execute(
+                "SELECT empleado_id FROM caja WHERE id=?", (previous["caja_id"],)
+            ).fetchone()[0] != employee_id:
+                raise BusinessError("Este cobro pertenece a otro empleado.", 403)
             previous_ids = {r["factura_id"] for r in db.execute(
                 "SELECT factura_id FROM aplicacion WHERE cobro_id=?", (previous["id"],)
             )}
@@ -220,9 +299,11 @@ def charge(payload):
                 raise BusinessError("Este identificador ya corresponde a otro cobro.", 409)
             return receipt(db, previous["id"])
         account = require_account(db, provider, reference)
-        cash = db.execute("SELECT id FROM caja WHERE cerrada_en IS NULL").fetchone()
+        cash = db.execute("SELECT id,empleado_id FROM caja WHERE cerrada_en IS NULL").fetchone()
         if not cash:
             raise BusinessError("Abrí la caja antes de cobrar.", 409)
+        if employee_id is not None and cash["empleado_id"] != employee_id:
+            raise BusinessError("Esta caja pertenece a otro empleado.", 403)
         placeholders = ",".join("?" for _ in ids)
         invoices = db.execute(
             f"SELECT id,importe,estado FROM prestadora.factura WHERE prestadora=? AND referencia=? AND id IN ({placeholders})",
@@ -275,11 +356,27 @@ def pos_history(provider=None, reference=None):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def send_json(self, status, data):
+    def token(self):
+        try:
+            cookies = SimpleCookie()
+            cookies.load(self.headers.get("Cookie", ""))
+            return cookies["pos_session"].value if "pos_session" in cookies else None
+        except Exception:
+            return None
+
+    def authenticated_employee(self):
+        employee = session_employee(self.token())
+        if not employee:
+            raise BusinessError("Iniciá sesión para continuar.", 401)
+        return employee
+
+    def send_json(self, status, data, cookie=None):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -296,11 +393,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
             elif path.path == "/api/bootstrap":
-                self.send_json(200, {"providers": PROVIDERS, "employees": employees(), "cash": current_cash()})
+                employee = session_employee(self.token())
+                self.send_json(200, {"providers": PROVIDERS, "employees": employees(),
+                                     "employee": employee, "cash": current_cash() if employee else None})
             elif path.path == "/api/lookup":
+                self.authenticated_employee()
                 self.send_json(200, lookup(q.get("provider", [""])[0], q.get("reference", [""])[0]))
             elif path.path == "/api/history":
+                self.authenticated_employee()
                 self.send_json(200, pos_history(q.get("provider", [None])[0], q.get("reference", [None])[0]))
+            elif path.path == "/api/demo/accounts":
+                self.authenticated_employee()
+                self.send_json(200, demo_accounts())
             else:
                 self.send_json(404, {"error": "Ruta no encontrada."})
         except BusinessError as exc:
@@ -317,12 +421,22 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise BusinessError("JSON inválido.")
+            if self.path == "/api/login":
+                token, employee = login(payload.get("employee_id"), payload.get("pin"))
+                self.send_json(200, {"employee": employee, "cash": current_cash()},
+                               f"pos_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_SECONDS}")
+                return
+            employee = self.authenticated_employee()
+            if self.path == "/api/logout":
+                logout(self.token(), employee["id"])
+                self.send_json(200, {"ok": True}, "pos_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
+                return
             if self.path == "/api/cash/open":
-                result = open_cash(payload.get("employee_id"))
+                result = open_cash(employee["id"])
             elif self.path == "/api/cash/close":
-                result = close_cash()
+                result = close_cash(employee["id"])
             elif self.path == "/api/charge":
-                result = charge(payload)
+                result = charge(payload, employee["id"])
             else:
                 self.send_json(404, {"error": "Ruta no encontrada."})
                 return
