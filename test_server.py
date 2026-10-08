@@ -4,6 +4,7 @@ import sqlite3
 import time
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 import server
 
@@ -30,6 +31,49 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(server.lookup("ANDE", "DEMO-ANDE-000")["status"], "SIN_DEUDA")
         with self.assertRaises(server.BusinessError):
             server.lookup("ESSAP", "DEMO-ANDE-001")
+
+    def test_available_date_blocks_future_invoice_but_not_future_due_date(self):
+        with server.connect() as db:
+            db.executemany("INSERT INTO prestadora.factura VALUES (?,?,?,?,?,?,?,?)", [
+                ("A-FUTURA", "ANDE", "DEMO-ANDE-001", "11/2026", "2026-12-15", 99000, "PENDIENTE", "2026-10-28"),
+                ("A-EMITIDA", "ANDE", "DEMO-ANDE-001", "10/2026", "2026-12-15", 88000, "PENDIENTE", "2026-10-27"),
+            ])
+        server.open_cash(1)
+        with patch.object(server, "today", return_value="2026-10-27"):
+            visible = {row["id"] for row in server.lookup("ANDE", "DEMO-ANDE-001")["invoices"]}
+            self.assertIn("A-EMITIDA", visible)
+            self.assertNotIn("A-FUTURA", visible)
+            with self.assertRaises(server.BusinessError):
+                server.charge({"provider": "ANDE", "reference": "DEMO-ANDE-001",
+                               "invoice_ids": ["A-FUTURA"], "request_id": "early-direct"}, 1)
+            with self.assertRaises(server.BusinessError):
+                server.start_qr({"provider": "ANDE", "reference": "DEMO-ANDE-001",
+                                 "invoice_ids": ["A-FUTURA"]}, 1)
+            paid = server.charge({"provider": "ANDE", "reference": "DEMO-ANDE-001",
+                                  "invoice_ids": ["A-EMITIDA"], "request_id": "issued-future-due"}, 1)
+            self.assertEqual(paid["importe"], 88000)
+        with patch.object(server, "today", return_value="2026-10-28"):
+            visible = {row["id"] for row in server.lookup("ANDE", "DEMO-ANDE-001")["invoices"]}
+            self.assertIn("A-FUTURA", visible)
+            paid = server.charge({"provider": "ANDE", "reference": "DEMO-ANDE-001",
+                                  "invoice_ids": ["A-FUTURA"], "request_id": "available-direct"}, 1)
+            self.assertEqual(paid["importe"], 99000)
+
+    def test_existing_provider_invoices_migrate_as_available(self):
+        legacy = Path(self.folder.name) / "legacy-provider"
+        legacy.mkdir()
+        with closing(sqlite3.connect(legacy / "prestadoras_simuladas.db")) as db:
+            db.executescript("""
+                CREATE TABLE cuenta(prestadora TEXT NOT NULL,referencia TEXT NOT NULL,titular TEXT NOT NULL,PRIMARY KEY(prestadora,referencia));
+                INSERT INTO cuenta VALUES ('ANDE','DEMO-ANTIGUA','Titular de prueba');
+                CREATE TABLE factura(id TEXT PRIMARY KEY,prestadora TEXT NOT NULL,referencia TEXT NOT NULL,periodo TEXT NOT NULL,vencimiento TEXT NOT NULL,importe INTEGER NOT NULL,estado TEXT NOT NULL);
+                INSERT INTO factura VALUES ('A-ANTIGUA','ANDE','DEMO-ANTIGUA','09/2026','2026-10-15',45000,'PENDIENTE');
+            """)
+        server.DATA = legacy
+        server.init_db()
+        with server.connect() as db:
+            self.assertEqual(db.execute("SELECT disponible_desde FROM prestadora.factura WHERE id='A-ANTIGUA'").fetchone()[0], "0001-01-01")
+        self.assertEqual(server.lookup("ANDE", "DEMO-ANTIGUA")["invoices"][0]["id"], "A-ANTIGUA")
 
     def test_payment_is_exact_applied_once_and_visible_to_its_employee(self):
         server.open_cash(1)

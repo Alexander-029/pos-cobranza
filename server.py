@@ -43,6 +43,11 @@ def now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def today():
+    # La disponibilidad de una factura se evalúa en la fecha local del servidor.
+    return datetime.now().astimezone().date().isoformat()
+
+
 @contextmanager
 def connect():
     DATA.mkdir(exist_ok=True)
@@ -105,6 +110,7 @@ def init_db():
                 referencia TEXT NOT NULL, periodo TEXT NOT NULL,
                 vencimiento TEXT NOT NULL, importe INTEGER NOT NULL CHECK(importe > 0),
                 estado TEXT NOT NULL CHECK(estado IN ('PENDIENTE','PAGADA')),
+                disponible_desde TEXT NOT NULL,
                 FOREIGN KEY(prestadora, referencia) REFERENCES cuenta(prestadora, referencia)
             );
             CREATE TABLE IF NOT EXISTS prestadora.pago (
@@ -147,6 +153,10 @@ def init_db():
                 db.execute("PRAGMA foreign_keys=ON")
             if db.execute("PRAGMA foreign_key_check").fetchone():
                 raise RuntimeError("La migración de cobros dejó referencias inválidas")
+        invoice_columns = {row["name"] for row in db.execute("PRAGMA prestadora.table_info(factura)")}
+        if "disponible_desde" not in invoice_columns:
+            # Las facturas ya existentes eran visibles; se conserva ese comportamiento.
+            db.execute("ALTER TABLE prestadora.factura ADD COLUMN disponible_desde TEXT NOT NULL DEFAULT '0001-01-01'")
         columns = {row["name"] for row in db.execute("PRAGMA table_info(empleado)")}
         if "pin_salt" not in columns:
             db.execute("ALTER TABLE empleado ADD COLUMN pin_salt BLOB")
@@ -167,13 +177,13 @@ def init_db():
                 ("ESSAP", "DEMO-ESSAP-001", "María González"),
                 ("TIGO", "DEMO-TIGO-001", "Carlos Medina"),
             ])
-            db.executemany("INSERT INTO prestadora.factura VALUES (?,?,?,?,?,?,?)", [
-                ("A-2026-09", "ANDE", "DEMO-ANDE-001", "09/2026", "2026-10-15", 128000, "PENDIENTE"),
-                ("A-2026-08", "ANDE", "DEMO-ANDE-001", "08/2026", "2026-09-15", 119000, "PENDIENTE"),
-                ("A-2026-07", "ANDE", "DEMO-ANDE-001", "07/2026", "2026-08-15", 117000, "PAGADA"),
-                ("A-000-09", "ANDE", "DEMO-ANDE-000", "09/2026", "2026-10-15", 83000, "PAGADA"),
-                ("E-2026-09", "ESSAP", "DEMO-ESSAP-001", "09/2026", "2026-10-20", 64000, "PENDIENTE"),
-                ("T-2026-09", "TIGO", "DEMO-TIGO-001", "09/2026", "2026-10-18", 165000, "PENDIENTE"),
+            db.executemany("INSERT INTO prestadora.factura VALUES (?,?,?,?,?,?,?,?)", [
+                ("A-2026-09", "ANDE", "DEMO-ANDE-001", "09/2026", "2026-10-15", 128000, "PENDIENTE", "2026-09-28"),
+                ("A-2026-08", "ANDE", "DEMO-ANDE-001", "08/2026", "2026-09-15", 119000, "PENDIENTE", "2026-08-28"),
+                ("A-2026-07", "ANDE", "DEMO-ANDE-001", "07/2026", "2026-08-15", 117000, "PAGADA", "2026-07-28"),
+                ("A-000-09", "ANDE", "DEMO-ANDE-000", "09/2026", "2026-10-15", 83000, "PAGADA", "2026-09-28"),
+                ("E-2026-09", "ESSAP", "DEMO-ESSAP-001", "09/2026", "2026-10-20", 64000, "PENDIENTE", "2026-09-28"),
+                ("T-2026-09", "TIGO", "DEMO-TIGO-001", "09/2026", "2026-10-18", 165000, "PENDIENTE", "2026-09-28"),
             ])
             db.executemany("INSERT INTO prestadora.pago VALUES (?,?,?,?,?,?,?)", [
                 ("EXT-A-001", None, "ANDE", "DEMO-ANDE-001", "OTRO_CANAL", 117000, "2026-08-12T14:00:00+00:00"),
@@ -215,8 +225,9 @@ def lookup(provider, reference):
         account = require_account(db, provider, reference)
         invoices = [rowdict(r) for r in db.execute(
             "SELECT id,periodo,vencimiento,importe,estado FROM prestadora.factura "
-            "WHERE prestadora=? AND referencia=? AND estado='PENDIENTE' ORDER BY vencimiento,id",
-            (provider, account["referencia"]),
+            "WHERE prestadora=? AND referencia=? AND estado='PENDIENTE' "
+            "AND disponible_desde<=? ORDER BY vencimiento,id",
+            (provider, account["referencia"], today()),
         )]
         return {"account": account, "invoices": invoices,
                 "status": "PENDIENTE" if invoices else "SIN_DEUDA"}
@@ -350,11 +361,12 @@ def charge(payload, employee_id=None, allow_qr=False):
             raise BusinessError("Esta caja pertenece a otro empleado.", 403)
         placeholders = ",".join("?" for _ in ids)
         invoices = db.execute(
-            f"SELECT id,importe,estado FROM prestadora.factura WHERE prestadora=? AND referencia=? AND id IN ({placeholders})",
+            f"SELECT id,importe,estado,disponible_desde FROM prestadora.factura WHERE prestadora=? AND referencia=? AND id IN ({placeholders})",
             (provider, reference, *ids),
         ).fetchall()
-        if len(invoices) != len(ids) or any(i["estado"] != "PENDIENTE" for i in invoices):
-            raise BusinessError("Alguna factura no existe para esta cuenta o ya está pagada. Consultá de nuevo.", 409)
+        current_date = today()
+        if len(invoices) != len(ids) or any(i["estado"] != "PENDIENTE" or i["disponible_desde"] > current_date for i in invoices):
+            raise BusinessError("Alguna factura no está disponible para cobrar. Consultá de nuevo.", 409)
         amount = sum(i["importe"] for i in invoices)
         paid_at, payment_id = now(), str(uuid4())
         db.execute("INSERT INTO prestadora.pago VALUES (?,?,?,?,?,?,?)",
@@ -415,8 +427,9 @@ def start_qr(payload, employee_id):
             raise BusinessError("Abrí tu caja antes de generar el QR.", 409)
         placeholders = ",".join("?" for _ in ids)
         invoices = db.execute(
-            f"SELECT id,importe FROM prestadora.factura WHERE prestadora=? AND referencia=? AND estado='PENDIENTE' AND id IN ({placeholders})",
-            (provider, reference, *ids),
+            f"SELECT id,importe FROM prestadora.factura WHERE prestadora=? AND referencia=? "
+            f"AND estado='PENDIENTE' AND disponible_desde<=? AND id IN ({placeholders})",
+            (provider, reference, today(), *ids),
         ).fetchall()
         if len(invoices) != len(ids):
             raise BusinessError("Alguna factura ya no está pendiente. Consultá de nuevo.", 409)
