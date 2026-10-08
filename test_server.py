@@ -71,7 +71,6 @@ class CollectionTests(unittest.TestCase):
         with self.assertRaises(server.BusinessError):
             server.charge({"provider": "ESSAP", "reference": "DEMO-ESSAP-001",
                            "invoice_ids": ["E-2026-09"], "request_id": "other-employee"}, 2)
-        self.assertEqual(len(server.demo_accounts()), 4)
         server.close_cash(employee["id"])
         server.logout(token, employee["id"])
         self.assertIsNone(server.session_employee(token))

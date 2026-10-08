@@ -16,7 +16,7 @@ Abrí `http://127.0.0.1:8765` en el mismo equipo. Para reiniciar la simulación,
 ## Recorrido para probar
 
 1. Iniciá sesión con Lucía Benítez (PIN `1234`) o Diego Rojas (PIN `5678`). Son credenciales públicas **solo para esta demostración**.
-2. Abrí **Datos de prueba** para ver las referencias ficticias disponibles, sus titulares y saldos actuales. Pulsá **Consultar** en una fila para abrir esa cuenta.
+2. Abrí el archivo separado [DATOS_DE_PRUEBA.md](DATOS_DE_PRUEBA.md), elegí una referencia ficticia y consultala en el POS. El archivo muestra los datos iniciales; los saldos cambian después de cada cobro.
 3. Abrí tu caja, elegí una o más facturas pendientes y confirmá el cobro en efectivo. El total es exactamente la suma de las facturas elegidas.
 4. Consultá de nuevo: las facturas cobradas figuran como pagadas. Compará **Pagos informados por la prestadora** con **Historial POS**.
 5. Cerrá la caja para obtener su cantidad de cobros y total; después podés cerrar sesión.

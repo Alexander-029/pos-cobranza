@@ -221,20 +221,6 @@ def logout(token, employee_id):
         SESSIONS.pop(hashlib.sha256(token.encode()).hexdigest(), None)
 
 
-def demo_accounts():
-    with connect() as db:
-        return [rowdict(r) for r in db.execute("""
-            SELECT c.prestadora,c.referencia,c.titular,
-                   SUM(CASE WHEN f.estado='PENDIENTE' THEN 1 ELSE 0 END) AS pendientes,
-                   COALESCE(SUM(CASE WHEN f.estado='PENDIENTE' THEN f.importe ELSE 0 END),0) AS total_pendiente,
-                   SUM(CASE WHEN f.estado='PAGADA' THEN 1 ELSE 0 END) AS pagadas
-            FROM prestadora.cuenta AS c
-            LEFT JOIN prestadora.factura AS f ON f.prestadora=c.prestadora AND f.referencia=c.referencia
-            GROUP BY c.prestadora,c.referencia,c.titular
-            ORDER BY c.prestadora,c.referencia
-        """)]
-
-
 def current_cash():
     with connect() as db:
         return rowdict(db.execute(
@@ -402,9 +388,6 @@ class Handler(BaseHTTPRequestHandler):
             elif path.path == "/api/history":
                 self.authenticated_employee()
                 self.send_json(200, pos_history(q.get("provider", [None])[0], q.get("reference", [None])[0]))
-            elif path.path == "/api/demo/accounts":
-                self.authenticated_employee()
-                self.send_json(200, demo_accounts())
             else:
                 self.send_json(404, {"error": "Ruta no encontrada."})
         except BusinessError as exc:

@@ -25,19 +25,18 @@
   </style>
 </head>
 <body>
-  <header><div class="brand">Sistema de cobranzas<small>Caja 01 · Simulación</small></div><nav id="main-nav" aria-label="Secciones" hidden><button class="active" type="button" data-tab="charge">Cobrar</button><button type="button" data-tab="history">Historial POS</button><button type="button" data-tab="demo">Datos de prueba</button></nav></header>
+  <header><div class="brand">Sistema de cobranzas<small>Caja 01 · Simulación</small></div><nav id="main-nav" aria-label="Secciones" hidden><button class="active" type="button" data-tab="charge">Cobrar</button><button type="button" data-tab="history">Historial POS</button></nav></header>
   <section class="login-wrap" id="login-view" aria-labelledby="login-title"><p class="eyebrow">ACCESO / DEMOSTRACIÓN</p><h1 id="login-title">Iniciar sesión</h1><div class="panel"><div class="panel-head"><h2>Empleado de caja</h2></div><div class="panel-body"><form class="login-form" id="login-form"><label for="login-employee">Empleado<select class="field" id="login-employee" required></select></label><label for="login-pin">PIN<input class="field" id="login-pin" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="4" pattern="[0-9]{4}" required></label><button class="primary" type="submit">Ingresar</button><p class="hint" id="login-message" role="status"></p></form><div class="demo-credentials"><strong>Accesos ficticios para probar</strong>Lucía Benítez: PIN 1234<br>Diego Rojas: PIN 5678<br>Estos PIN son públicos y no protegen datos reales.</div></div></div></section>
   <main id="app" hidden>
     <div class="top"><div><p class="eyebrow">OPERACIONES / COBRANZAS</p><h1 id="page-title">Consultar y cobrar factura</h1><p class="sub">Seleccioná la prestadora e ingresá la referencia de esa prestadora.</p></div><div class="cashbar"><strong class="employee-name" id="signed-employee"></strong><button class="secondary" type="button" id="cash-toggle">Abrir caja</button><strong id="cash-state">Caja cerrada</strong><button class="secondary" type="button" id="logout-button">Salir</button></div></div>
     <div id="charge-view">
       <div class="workspace">
-        <section class="panel" aria-labelledby="query-title"><div class="panel-head"><h2 id="query-title">Consulta a prestadora simulada</h2></div><div class="panel-body"><form id="lookup-form" class="lookup-grid"><label for="provider">Servicio<select class="field" id="provider"></select></label><label for="reference"><span id="reference-label">Referencia</span><input class="field" id="reference" required maxlength="50" autocomplete="off" placeholder="Ej.: DEMO-ANDE-001"></label><button class="primary" type="submit">Consultar</button></form><p class="hint" id="query-message" role="status"></p><div class="info empty" id="account-info">Ingresá una referencia. No hace falta registrar al cliente en el POS.</div><p class="note">Si no conocés una referencia, abrí <strong>Datos de prueba</strong>. Todos los datos son ficticios.</p></div></section>
+        <section class="panel" aria-labelledby="query-title"><div class="panel-head"><h2 id="query-title">Consulta a prestadora simulada</h2></div><div class="panel-body"><form id="lookup-form" class="lookup-grid"><label for="provider">Servicio<select class="field" id="provider"></select></label><label for="reference"><span id="reference-label">Referencia</span><input class="field" id="reference" required maxlength="50" autocomplete="off" placeholder="Ej.: DEMO-ANDE-001"></label><button class="primary" type="submit">Consultar</button></form><p class="hint" id="query-message" role="status"></p><div class="info empty" id="account-info">Ingresá una referencia. No hace falta registrar al cliente en el POS.</div></div></section>
         <section class="panel" aria-labelledby="invoice-title"><div class="panel-head"><h2 id="invoice-title">Facturas emitidas</h2><span>Solo las pendientes admiten cobro</span></div><div class="panel-body"><p class="section-label" id="invoice-title-detail">Esperando consulta</p><div class="grid-frame"><table class="data-grid"><thead><tr><th>Sel.</th><th>Factura</th><th>Periodo</th><th>Vence</th><th class="num">Importe</th><th>Estado</th></tr></thead><tbody id="invoice-rows"><tr><td class="empty-row" colspan="6">Consultá una cuenta para ver sus facturas.</td></tr></tbody></table></div><div class="charge"><div class="charge-title">Datos del cobro</div><div class="charge-body"><div><small>Medio de pago: efectivo · Importe exacto de las facturas seleccionadas</small><br><strong id="charge-total">Gs. 0</strong></div><button class="primary" id="charge-button" type="button" disabled>Confirmar cobro</button></div></div><p class="hint" id="charge-message" role="status"></p></div></section>
       </div>
       <section class="panel table-section" aria-labelledby="provider-history-title"><div class="panel-head"><h2 id="provider-history-title">Pagos informados por la prestadora simulada</h2><span>Puede incluir otros canales</span></div><div class="panel-body"><div class="grid-frame"><table class="data-grid"><thead><tr><th>Fecha</th><th>ID</th><th>Origen</th><th class="num">Importe</th></tr></thead><tbody id="provider-history"><tr><td class="empty-row" colspan="4">Consultá una cuenta para ver sus pagos.</td></tr></tbody></table></div></div></section>
     </div>
     <section class="panel table-section" id="history-view" hidden aria-labelledby="pos-history-title"><div class="panel-head"><h2 id="pos-history-title">Cobros de este POS</h2><span>Solo operaciones confirmadas aquí</span></div><div class="panel-body"><div class="grid-frame"><table class="data-grid"><thead><tr><th>Fecha</th><th>Comprobante</th><th>Servicio</th><th>Referencia</th><th>Titular</th><th>Empleado</th><th class="num">Importe</th></tr></thead><tbody id="pos-history"><tr><td class="empty-row" colspan="7">Todavía no hay cobros.</td></tr></tbody></table></div></div></section>
-    <section class="panel table-section" id="demo-view" hidden aria-labelledby="demo-title"><div class="panel-head"><h2 id="demo-title">Cuentas ficticias disponibles</h2><span>Los saldos se actualizan después de cada cobro</span></div><div class="panel-body"><p class="note">Estas referencias existen solo en la base simulada. Elegí una para ver todas sus facturas y pagos anteriores.</p><div class="grid-frame"><table class="data-grid"><thead><tr><th>Servicio</th><th>Referencia</th><th>Titular</th><th class="num">Pendientes</th><th class="num">Total pendiente</th><th class="num">Pagadas</th><th></th></tr></thead><tbody id="demo-rows"></tbody></table></div></div></section>
     <p class="note">Demostración local: no se conecta a ANDE, ESSAP ni Tigo, no mueve dinero y no emite comprobantes fiscales. Las bases SQLite se crean en <code>data/</code> al iniciar.</p>
   </main>
   <dialog id="receipt"><h2 id="receipt-title">Comprobante de simulación</h2><p>Confirmación de la prestadora simulada</p><table class="receipt-table"><tbody id="receipt-details"></tbody></table><div class="actions"><button class="secondary" type="button" id="print-receipt">Imprimir</button><button class="primary" type="button" id="close-receipt">Cerrar</button></div></dialog>
@@ -97,13 +96,6 @@
       if(!rows.length){const tr=tbody.insertRow();cell(tr,'Todavía no hay cobros.').colSpan=7;tr.firstChild.className='empty-row';}
       for(const item of rows){const tr=tbody.insertRow();cell(tr,date(item.confirmado_en));cell(tr,item.id.slice(0,8));cell(tr,item.prestadora);cell(tr,item.referencia);cell(tr,item.titular);cell(tr,item.empleado);cell(tr,money(item.importe),'num');}
     }
-    async function refreshDemo(){
-      const rows=await api('/api/demo/accounts'), tbody=$('demo-rows');clear(tbody);
-      for(const item of rows){
-        const tr=tbody.insertRow();cell(tr,state.providers[item.prestadora]?.name||item.prestadora);cell(tr,item.referencia);cell(tr,item.titular);cell(tr,item.pendientes,'num');cell(tr,money(item.total_pendiente),'num');cell(tr,item.pagadas,'num');
-        const button=document.createElement('button');button.type='button';button.textContent='Consultar';button.addEventListener('click',()=>{$('provider').value=item.prestadora;$('reference-label').textContent=state.providers[item.prestadora].reference_label;$('reference').value=item.referencia;showTab('charge');doLookup();});tr.insertCell().append(button);
-      }
-    }
     function renderAuth(){
       const active=!!state.employee;$('login-view').hidden=active;$('app').hidden=!active;$('main-nav').hidden=!active;
       $('signed-employee').textContent=active?state.employee.nombre:'';
@@ -161,9 +153,9 @@
     $('close-receipt').addEventListener('click',()=>$('receipt').close());$('print-receipt').addEventListener('click',()=>print());
     async function showTab(name){
       for(const button of document.querySelectorAll('[data-tab]'))button.classList.toggle('active',button.dataset.tab===name);
-      $('charge-view').hidden=name!=='charge';$('history-view').hidden=name!=='history';$('demo-view').hidden=name!=='demo';
-      $('page-title').textContent={charge:'Consultar y cobrar factura',history:'Historial de cobros',demo:'Datos de prueba'}[name];
-      try{if(name==='history')await refreshHistory();if(name==='demo')await refreshDemo();}catch(err){message('charge-message',err.message,true);}
+      $('charge-view').hidden=name!=='charge';$('history-view').hidden=name!=='history';
+      $('page-title').textContent={charge:'Consultar y cobrar factura',history:'Historial de cobros'}[name];
+      try{if(name==='history')await refreshHistory();}catch(err){message('charge-message',err.message,true);}
     }
     for(const tab of document.querySelectorAll('[data-tab]'))tab.addEventListener('click',()=>showTab(tab.dataset.tab));
     init();
