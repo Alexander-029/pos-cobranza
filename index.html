@@ -19,33 +19,33 @@
     .hint{color:#555;min-height:16px;margin:10px 0 0}.hint.error{color:#a32424}.info{border:1px solid #bcbcbc;background:#f3f3f3;padding:8px;margin-top:12px;line-height:1.7}.info strong{font-weight:700}.info span{color:#555}.info.empty{color:#666}
     .grid-frame{overflow:auto;border:1px solid #b8b8b8}.data-grid{width:100%;border-collapse:collapse;white-space:nowrap;font-size:11px}.data-grid th{background:#e1e1e1;color:#333;font-weight:700;text-align:left;border-right:1px solid #bcbcbc;border-bottom:1px solid #aaa;padding:7px 8px}.data-grid td{border-right:1px solid #dedede;border-bottom:1px solid #dedede;padding:6px 8px;height:29px}.data-grid th:last-child,.data-grid td:last-child{border-right:0}.data-grid tbody tr:nth-child(even){background:#f6f6f6}.data-grid tbody tr:hover{background:#eaf0f4}.data-grid .num{text-align:right;font-variant-numeric:tabular-nums}.data-grid .paid{color:#666}.data-grid input{margin:0;vertical-align:middle}
     .section-label{font-weight:700;margin:0 0 7px}.charge{margin-top:11px;border:1px solid #b8b8b8;background:#f7f7f7}.charge-title{background:#dedede;border-bottom:1px solid #bbb;padding:7px 9px;font-weight:700}.charge-body{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px}.charge-body strong{font-size:14px}.charge-body small{color:#555}.table-section{margin-top:12px}.table-section .panel-body{padding:9px}.muted{color:#666}.empty-row{text-align:center;color:#666;padding:15px!important}.note{margin:11px 0 0;color:#555;font-size:11px;line-height:1.5}
-    dialog{border:1px solid #777;border-radius:0;padding:16px;max-width:480px;width:calc(100% - 30px);box-shadow:3px 3px 0 #777}dialog::backdrop{background:#2228}dialog h2{font-size:15px;margin:0 0 4px}dialog p{color:#555}.receipt-table{width:100%;border-collapse:collapse;margin:13px 0}.receipt-table td{border-top:1px solid #ddd;padding:7px 2px}.receipt-table td:last-child{text-align:right;font-weight:700}.actions{display:flex;justify-content:flex-end;gap:7px}
+    dialog{border:1px solid #777;border-radius:0;padding:16px;max-width:480px;width:calc(100% - 30px);box-shadow:3px 3px 0 #777}dialog::backdrop{background:#2228}dialog h2{font-size:15px;margin:0 0 4px}dialog p{color:#555}.receipt-table{width:100%;border-collapse:collapse;margin:13px 0}.receipt-table td{border-top:1px solid #ddd;padding:7px 2px}.receipt-table td:last-child{text-align:right;font-weight:700}.actions{display:flex;justify-content:flex-end;gap:7px}.qr-image{display:block;width:250px;max-width:100%;margin:12px auto}.qr-url{word-break:break-all;font-size:11px}.payment-label{font-size:11px;font-weight:700}.payment-label select{margin-top:4px}
     @media(max-width:980px){.workspace{grid-template-columns:1fr}}@media(max-width:650px){header{padding:0 8px;gap:7px}.brand small{display:none}nav button{padding:0 9px}main{padding:12px 8px}.top{align-items:flex-start;flex-direction:column}.lookup-grid{grid-template-columns:1fr 1fr}.lookup-grid button{grid-column:1/-1}.charge-body{align-items:flex-start;flex-direction:column}}
     @media print{header,.top,.workspace,.table-section,.note,.actions{display:none!important}body{background:#fff}dialog{position:static;border:0;box-shadow:none;width:100%;max-width:none}dialog::backdrop{display:none}}
   </style>
 </head>
 <body>
-  <header><div class="brand">Sistema de cobranzas<small>Caja 01 · Simulación</small></div><nav id="main-nav" aria-label="Secciones" hidden><button class="active" type="button" data-tab="charge">Cobrar</button><button type="button" data-tab="history">Historial POS</button></nav></header>
+  <header><div class="brand">Sistema de cobranzas<small>Caja 01 · Simulación</small></div><nav id="main-nav" aria-label="Secciones" hidden><button class="active" type="button" data-tab="charge">Cobrar</button><button type="button" data-tab="history">Mis cobros</button></nav></header>
   <section class="login-wrap" id="login-view" aria-labelledby="login-title"><p class="eyebrow">ACCESO / DEMOSTRACIÓN</p><h1 id="login-title">Iniciar sesión</h1><div class="panel"><div class="panel-head"><h2>Empleado de caja</h2></div><div class="panel-body"><form class="login-form" id="login-form"><label for="login-employee">Empleado<select class="field" id="login-employee" required></select></label><label for="login-pin">PIN<input class="field" id="login-pin" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="4" pattern="[0-9]{4}" required></label><button class="primary" type="submit">Ingresar</button><p class="hint" id="login-message" role="status"></p></form><div class="demo-credentials"><strong>Accesos ficticios para probar</strong>Lucía Benítez: PIN 1234<br>Diego Rojas: PIN 5678<br>Estos PIN son públicos y no protegen datos reales.</div></div></div></section>
   <main id="app" hidden>
     <div class="top"><div><p class="eyebrow">OPERACIONES / COBRANZAS</p><h1 id="page-title">Consultar y cobrar factura</h1><p class="sub">Seleccioná la prestadora e ingresá la referencia de esa prestadora.</p></div><div class="cashbar"><strong class="employee-name" id="signed-employee"></strong><button class="secondary" type="button" id="cash-toggle">Abrir caja</button><strong id="cash-state">Caja cerrada</strong><button class="secondary" type="button" id="logout-button">Salir</button></div></div>
     <div id="charge-view">
       <div class="workspace">
         <section class="panel" aria-labelledby="query-title"><div class="panel-head"><h2 id="query-title">Consulta a prestadora simulada</h2></div><div class="panel-body"><form id="lookup-form" class="lookup-grid"><label for="provider">Servicio<select class="field" id="provider"></select></label><label for="reference"><span id="reference-label">Referencia</span><input class="field" id="reference" required maxlength="50" autocomplete="off" placeholder="Ej.: DEMO-ANDE-001"></label><button class="primary" type="submit">Consultar</button></form><p class="hint" id="query-message" role="status"></p><div class="info empty" id="account-info">Ingresá una referencia. No hace falta registrar al cliente en el POS.</div></div></section>
-        <section class="panel" aria-labelledby="invoice-title"><div class="panel-head"><h2 id="invoice-title">Facturas emitidas</h2><span>Solo las pendientes admiten cobro</span></div><div class="panel-body"><p class="section-label" id="invoice-title-detail">Esperando consulta</p><div class="grid-frame"><table class="data-grid"><thead><tr><th>Sel.</th><th>Factura</th><th>Periodo</th><th>Vence</th><th class="num">Importe</th><th>Estado</th></tr></thead><tbody id="invoice-rows"><tr><td class="empty-row" colspan="6">Consultá una cuenta para ver sus facturas.</td></tr></tbody></table></div><div class="charge"><div class="charge-title">Datos del cobro</div><div class="charge-body"><div><small>Medio de pago: efectivo · Importe exacto de las facturas seleccionadas</small><br><strong id="charge-total">Gs. 0</strong></div><button class="primary" id="charge-button" type="button" disabled>Confirmar cobro</button></div></div><p class="hint" id="charge-message" role="status"></p></div></section>
+        <section class="panel" aria-labelledby="invoice-title"><div class="panel-head"><h2 id="invoice-title">Facturas pendientes</h2><span>Importe informado por la prestadora simulada</span></div><div class="panel-body"><p class="section-label" id="invoice-title-detail">Esperando consulta</p><div class="grid-frame"><table class="data-grid"><thead><tr><th>Sel.</th><th>Factura</th><th>Periodo</th><th>Vence</th><th class="num">Importe</th><th>Estado</th></tr></thead><tbody id="invoice-rows"><tr><td class="empty-row" colspan="6">Consultá una cuenta para ver sus facturas.</td></tr></tbody></table></div><div class="charge"><div class="charge-title">Datos del cobro</div><div class="charge-body"><div><label class="payment-label" for="payment-method">Medio de pago<select class="field" id="payment-method"></select></label><small>Registro simulado · Importe exacto de las facturas seleccionadas</small><br><strong id="charge-total">Gs. 0</strong></div><button class="primary" id="charge-button" type="button" disabled>Confirmar cobro</button></div></div><p class="hint" id="charge-message" role="status"></p></div></section>
       </div>
-      <section class="panel table-section" aria-labelledby="provider-history-title"><div class="panel-head"><h2 id="provider-history-title">Pagos informados por la prestadora simulada</h2><span>Puede incluir otros canales</span></div><div class="panel-body"><div class="grid-frame"><table class="data-grid"><thead><tr><th>Fecha</th><th>ID</th><th>Origen</th><th class="num">Importe</th></tr></thead><tbody id="provider-history"><tr><td class="empty-row" colspan="4">Consultá una cuenta para ver sus pagos.</td></tr></tbody></table></div></div></section>
     </div>
-    <section class="panel table-section" id="history-view" hidden aria-labelledby="pos-history-title"><div class="panel-head"><h2 id="pos-history-title">Cobros de este POS</h2><span>Solo operaciones confirmadas aquí</span></div><div class="panel-body"><div class="grid-frame"><table class="data-grid"><thead><tr><th>Fecha</th><th>Comprobante</th><th>Servicio</th><th>Referencia</th><th>Titular</th><th>Empleado</th><th class="num">Importe</th></tr></thead><tbody id="pos-history"><tr><td class="empty-row" colspan="7">Todavía no hay cobros.</td></tr></tbody></table></div></div></section>
+    <section class="panel table-section" id="history-view" hidden aria-labelledby="pos-history-title"><div class="panel-head"><h2 id="pos-history-title">Mis cobros</h2><span>Solo operaciones del empleado que inició sesión</span></div><div class="panel-body"><div class="grid-frame"><table class="data-grid"><thead><tr><th>Fecha</th><th>Comprobante</th><th>Servicio</th><th>Referencia</th><th>Titular</th><th>Medio</th><th class="num">Importe</th></tr></thead><tbody id="pos-history"><tr><td class="empty-row" colspan="7">Todavía no hay cobros.</td></tr></tbody></table></div></div></section>
     <p class="note">Demostración local: no se conecta a ANDE, ESSAP ni Tigo, no mueve dinero y no emite comprobantes fiscales. Las bases SQLite se crean en <code>data/</code> al iniciar.</p>
   </main>
   <dialog id="receipt"><h2 id="receipt-title">Comprobante de simulación</h2><p>Confirmación de la prestadora simulada</p><table class="receipt-table"><tbody id="receipt-details"></tbody></table><div class="actions"><button class="secondary" type="button" id="print-receipt">Imprimir</button><button class="primary" type="button" id="close-receipt">Cerrar</button></div></dialog>
+  <dialog id="qr-dialog"><h2>QR de pago simulado</h2><p>Escaneá con un celular conectado al mismo Wi-Fi. El celular mostrará los datos y el total antes de confirmar. No mueve dinero.</p><img class="qr-image" id="qr-image" alt="Código QR para abrir la confirmación en el celular"><p class="qr-url" id="qr-url"></p><p class="hint" id="qr-status" role="status">Esperando confirmación desde el celular...</p><div class="actions"><button class="secondary" type="button" id="qr-cancel">Cancelar QR</button></div></dialog>
   <script>
     'use strict';
     const $ = id => document.getElementById(id);
     const money = n => 'Gs. ' + new Intl.NumberFormat('es-PY').format(n);
     const date = s => new Intl.DateTimeFormat('es-PY', {dateStyle:'short', timeStyle:'short'}).format(new Date(s));
-    const state = {providers:{}, employee:null, account:null, invoices:[], cash:null, pendingRequest:null, busy:false};
+    const state = {providers:{}, employee:null, account:null, invoices:[], cash:null, pendingRequest:null, qr:null, qrTimer:null, busy:false};
     const cell = (tr, value, cls='') => { const td=document.createElement('td'); td.textContent=String(value); if(cls) td.className=cls; tr.append(td); return td; };
     const clear = node => { while(node.firstChild) node.removeChild(node.firstChild); };
     const message = (id, value, error=false) => { $(id).textContent=value; $(id).classList.toggle('error', error); };
@@ -58,14 +58,14 @@
     function resetLookup(){
       state.account=null;state.invoices=[];state.pendingRequest=null;
       $('account-info').textContent='Ingresá una referencia y consultá la prestadora.';$('account-info').classList.add('empty');
-      $('invoice-title-detail').textContent='Esperando consulta';clear($('invoice-rows'));clear($('provider-history'));
+      $('invoice-title-detail').textContent='Esperando consulta';clear($('invoice-rows'));
       message('query-message','');message('charge-message','');updateTotal();
     }
     function selectedIds() { return [...document.querySelectorAll('#invoice-rows input:checked')].map(x=>x.value); }
     function updateTotal() {
       const ids=selectedIds(); const total=state.invoices.filter(i=>ids.includes(i.id)).reduce((s,i)=>s+i.importe,0);
       $('charge-total').textContent=money(total); $('charge-button').disabled=!state.cash || state.cash.empleado_id!==state.employee?.id || !ids.length || state.busy;
-      if(!state.pendingRequest || state.pendingRequest.ids.join('|')!==ids.join('|')) state.pendingRequest=null;
+      if(!state.pendingRequest || state.pendingRequest.ids.join('|')!==ids.join('|') || state.pendingRequest.medio!==$('payment-method').value) state.pendingRequest=null;
     }
     function renderLookup(data) {
       state.account=data.account; state.invoices=data.invoices; state.pendingRequest=null;
@@ -80,21 +80,18 @@
         if(invoice.estado==='PENDIENTE') {const input=document.createElement('input');input.type='checkbox';input.value=invoice.id;input.setAttribute('aria-label',`Seleccionar factura ${invoice.id}`);input.addEventListener('change',updateTotal);td.append(input);} else td.textContent='—';
         cell(tr,invoice.id);cell(tr,invoice.periodo);cell(tr,invoice.vencimiento);cell(tr,money(invoice.importe),'num');cell(tr,invoice.estado,invoice.estado==='PAGADA'?'paid':'');
       }
-      const history=$('provider-history');clear(history);
-      if(!data.provider_history.length){const tr=history.insertRow();cell(tr,'Sin pagos informados.').colSpan=4;tr.firstChild.className='empty-row';}
-      for(const item of data.provider_history){const tr=history.insertRow();cell(tr,date(item.pagado_en));cell(tr,item.id);cell(tr,item.origen==='OTRO_CANAL'?'Otro canal':'Este POS');cell(tr,money(item.importe),'num');}
       updateTotal();
     }
     async function doLookup(e) {
       if(e)e.preventDefault(); const provider=$('provider').value, reference=$('reference').value.trim().toUpperCase();
       state.account=null;state.invoices=[];state.pendingRequest=null;$('charge-button').disabled=true;message('charge-message','');message('query-message','Consultando...');
       try {const data=await api(`/api/lookup?provider=${encodeURIComponent(provider)}&reference=${encodeURIComponent(reference)}`);renderLookup(data);message('query-message',data.status==='SIN_DEUDA'?'Cuenta encontrada. No tiene facturas pendientes.':'Cuenta encontrada. Seleccioná una o más facturas.');}
-      catch(err){$('account-info').textContent='No hay una cuenta seleccionada.';$('account-info').classList.add('empty');$('invoice-title-detail').textContent='Esperando consulta';clear($('invoice-rows'));clear($('provider-history'));updateTotal();message('query-message',err.message,true);}
+      catch(err){$('account-info').textContent='No hay una cuenta seleccionada.';$('account-info').classList.add('empty');$('invoice-title-detail').textContent='Esperando consulta';clear($('invoice-rows'));updateTotal();message('query-message',err.message,true);}
     }
     async function refreshHistory() {
       const rows=await api('/api/history'), tbody=$('pos-history');clear(tbody);
       if(!rows.length){const tr=tbody.insertRow();cell(tr,'Todavía no hay cobros.').colSpan=7;tr.firstChild.className='empty-row';}
-      for(const item of rows){const tr=tbody.insertRow();cell(tr,date(item.confirmado_en));cell(tr,item.id.slice(0,8));cell(tr,item.prestadora);cell(tr,item.referencia);cell(tr,item.titular);cell(tr,item.empleado);cell(tr,money(item.importe),'num');}
+      for(const item of rows){const tr=tbody.insertRow();cell(tr,date(item.confirmado_en));cell(tr,item.id.slice(0,8));cell(tr,item.prestadora);cell(tr,item.referencia);cell(tr,item.titular);cell(tr,item.medio);cell(tr,money(item.importe),'num');}
     }
     function renderAuth(){
       const active=!!state.employee;$('login-view').hidden=active;$('app').hidden=!active;$('main-nav').hidden=!active;
@@ -108,7 +105,7 @@
     }
     async function toggleCash(){
       try {
-        if(state.cash){const summary=await post('/api/cash/close',{});state.cash=null;renderCash();message('charge-message',`Caja ${summary.caja_id} cerrada: ${summary.cobros} cobros, ${money(summary.total)}.`);}
+        if(state.cash){const summary=await post('/api/cash/close',{});state.cash=null;renderCash();const methods=Object.entries(summary.by_method).map(([name,total])=>`${name}: ${money(total)}`).join(' · ');message('charge-message',`Caja ${summary.caja_id} cerrada: ${summary.cobros} cobros, ${money(summary.total)}. ${methods}`);}
         else {state.cash=await post('/api/cash/open',{});renderCash();message('charge-message','Caja abierta. Ya podés confirmar cobros.');}
       }catch(err){message('charge-message',err.message,true);}
     }
@@ -123,15 +120,52 @@
     }
     function showReceipt(item){
       const tbody=$('receipt-details');clear(tbody);
-      for(const [label,value] of [['Comprobante',item.id],['Servicio',item.prestadora],['Referencia',item.referencia],['Titular',item.titular],['Facturas',item.applications.map(a=>a.factura_id).join(', ')],['Empleado',item.empleado],['Fecha',date(item.confirmado_en)],['Total',money(item.importe)]]) {const tr=tbody.insertRow();cell(tr,label);cell(tr,value);}
+      for(const [label,value] of [['Comprobante',item.id],['Servicio',item.prestadora],['Referencia',item.referencia],['Titular',item.titular],['Facturas',item.applications.map(a=>a.factura_id).join(', ')],['Empleado',item.empleado],['Medio',item.medio],['Fecha',date(item.confirmado_en)],['Total',money(item.importe)]]) {const tr=tbody.insertRow();cell(tr,label);cell(tr,value);}
       $('receipt').showModal();
+    }
+    function lockQrControls(locked){
+      for(const id of ['provider','reference','payment-method'])$(id).disabled=locked;
+      document.querySelector('#lookup-form button').disabled=locked;
+      for(const input of document.querySelectorAll('#invoice-rows input'))input.disabled=locked;
+    }
+    async function pollQr(){
+      if(!state.qr || state.qrChecking)return;
+      state.qrChecking=true;
+      try{
+        const result=await api(`/api/qr/status?id=${encodeURIComponent(state.qr.id)}`);
+        if(result.status==='PENDIENTE')return;
+        clearInterval(state.qrTimer);state.qrTimer=null;state.qr=null;state.busy=false;lockQrControls(false);
+        $('qr-dialog').close();updateTotal();
+        if(result.status==='CONFIRMADA'){
+          showReceipt(result.receipt);await doLookup();message('charge-message',`QR simulado confirmado por ${money(result.receipt.importe)}.`);await refreshHistory();
+        }else message('charge-message','El QR venció o fue cancelado. No se registró el cobro.',true);
+      }catch(err){message('qr-status',err.message,true);}
+      finally{state.qrChecking=false;}
+    }
+    async function startQr(ids){
+      state.busy=true;updateTotal();message('charge-message','Generando QR de demostración...');
+      try{
+        const result=await post('/api/qr/start',{provider:state.account.prestadora,reference:state.account.referencia,invoice_ids:ids});
+        state.qr=result;lockQrControls(true);
+        $('qr-image').src=`data:image/svg+xml;base64,${result.svg}`;
+        $('qr-url').textContent=result.url;
+        message('qr-status','Esperando confirmación desde el celular...');
+        $('qr-dialog').showModal();state.qrTimer=setInterval(pollQr,1500);
+      }catch(err){state.busy=false;updateTotal();message('charge-message',err.message,true);}
+    }
+    async function cancelQr(){
+      if(!state.qr)return;
+      try{await post('/api/qr/cancel',{id:state.qr.id});await pollQr();}
+      catch(err){message('qr-status',err.message,true);}
     }
     async function doCharge(){
       const ids=selectedIds(); if(!state.account || !state.cash || state.cash.empleado_id!==state.employee?.id || !ids.length || state.busy)return;
-      if(!state.pendingRequest || state.pendingRequest.ids.join('|')!==ids.join('|'))state.pendingRequest={id:crypto.randomUUID(),ids};
+      const medio=$('payment-method').value;
+      if(medio==='QR'){await startQr(ids);return;}
+      if(!state.pendingRequest || state.pendingRequest.ids.join('|')!==ids.join('|') || state.pendingRequest.medio!==medio)state.pendingRequest={id:crypto.randomUUID(),ids,medio};
       state.busy=true;updateTotal();message('charge-message','Confirmando con la prestadora simulada...');
       try {
-        const item=await post('/api/charge',{provider:state.account.prestadora,reference:state.account.referencia,invoice_ids:ids,request_id:state.pendingRequest.id});
+        const item=await post('/api/charge',{provider:state.account.prestadora,reference:state.account.referencia,invoice_ids:ids,request_id:state.pendingRequest.id,medio});
         state.pendingRequest=null;showReceipt(item);await doLookup();message('charge-message',`Cobro confirmado por ${money(item.importe)}.`);
         try{await refreshHistory();}catch(err){message('charge-message',`Cobro confirmado. No se pudo actualizar el historial: ${err.message}`,true);}
       } catch(err){message('charge-message',`${err.message} Si hubo un corte de conexión, reintentá sin cambiar la selección.`,true);}
@@ -142,6 +176,7 @@
         const data=await api('/api/bootstrap');state.providers=data.providers;state.employee=data.employee;state.cash=data.cash;
         for(const [id,p] of Object.entries(data.providers)){$('provider').add(new Option(p.name,id));}
         for(const e of data.employees)$('login-employee').add(new Option(e.nombre,e.id));
+        for(const method of data.methods)$('payment-method').add(new Option(method.name,method.code));
         if(data.employee)$('login-employee').value=String(data.employee.id);
         $('provider').addEventListener('change',()=>{$('reference-label').textContent=data.providers[$('provider').value].reference_label;$('reference').value='';resetLookup();});
         $('reference').addEventListener('input',resetLookup);
@@ -151,10 +186,11 @@
     $('login-form').addEventListener('submit',doLogin);$('logout-button').addEventListener('click',doLogout);
     $('lookup-form').addEventListener('submit',doLookup);$('cash-toggle').addEventListener('click',toggleCash);$('charge-button').addEventListener('click',doCharge);
     $('close-receipt').addEventListener('click',()=>$('receipt').close());$('print-receipt').addEventListener('click',()=>print());
+    $('qr-cancel').addEventListener('click',cancelQr);
     async function showTab(name){
       for(const button of document.querySelectorAll('[data-tab]'))button.classList.toggle('active',button.dataset.tab===name);
       $('charge-view').hidden=name!=='charge';$('history-view').hidden=name!=='history';
-      $('page-title').textContent={charge:'Consultar y cobrar factura',history:'Historial de cobros'}[name];
+      $('page-title').textContent={charge:'Consultar y cobrar factura',history:'Mis cobros'}[name];
       try{if(name==='history')await refreshHistory();}catch(err){message('charge-message',err.message,true);}
     }
     for(const tab of document.querySelectorAll('[data-tab]'))tab.addEventListener('click',()=>showTab(tab.dataset.tab));

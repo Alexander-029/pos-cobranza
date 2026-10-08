@@ -44,12 +44,12 @@ La factura de agosto de ANDE está vencida al 8 de octubre de 2026, pero **el si
 | ANDE | `DEMO-ANDE-001` | `EXT-A-001` | Otro canal | 2026-08-12 14:00 | `A-2026-07` | ₲ 117.000 |
 | ANDE | `DEMO-ANDE-000` | `EXT-A-000` | Otro canal | 2026-09-17 14:00 | `A-000-09` | ₲ 83.000 |
 
-Al cobrar una factura pendiente, la base simulada registra el nuevo pago y la marca pagada; el POS guarda además el empleado, la caja, el cobro y sus aplicaciones a facturas. Por eso «Pagos informados por la prestadora» puede mostrar pagos de otros canales, mientras «Historial POS» contiene solo cobros hechos aquí.
+Al cobrar una factura pendiente, la base simulada registra el nuevo pago y la marca pagada; el POS guarda además el empleado, la caja, el medio de pago, el cobro y sus aplicaciones a facturas. Los pagos de otros canales **no se muestran al cajero**: solo afectan el estado de la deuda. «Mis cobros» contiene únicamente los cobros del empleado autenticado.
 
 ## Casos concretos de prueba
 
-1. Consultá ANDE `DEMO-ANDE-001`: aparecen dos pendientes por **₲ 247.000** en conjunto y una pagada. Podés elegir una o ambas pendientes.
-2. Consultá ANDE `DEMO-ANDE-000`: la cuenta existe, pero no hay facturas para cobrar.
+1. Consultá ANDE `DEMO-ANDE-001`: aparecen dos pendientes por **₲ 247.000** en conjunto. La factura ya pagada no aparece en el POS del cajero. Podés elegir una o ambas pendientes.
+2. Consultá ANDE `DEMO-ANDE-000`: la cuenta existe, pero no hay facturas para cobrar; no se revela el pago anterior.
 3. Consultá ESSAP `DEMO-ESSAP-001`: aparece **₲ 64.000** pendiente, sin mezclarse con las facturas ANDE de María González.
 4. Consultá ANDE con `DEMO-ESSAP-001` o una referencia inexistente: la búsqueda debe indicar que no existe en esa prestadora simulada.
 5. Cobrá una factura con la caja abierta y volvé a consultar: debe aparecer pagada y el cobro debe figurar en el historial de este POS. Una segunda confirmación de esa misma factura no debe crear otro cobro.
