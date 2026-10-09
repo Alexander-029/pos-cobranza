@@ -162,6 +162,7 @@ function stopQrPolling() {
 }
 function resetHome() {
   stopQrPolling();
+  setAmount(0);
   activeQr = null;
   requestId = null;
   needsChip = false;

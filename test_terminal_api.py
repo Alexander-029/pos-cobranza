@@ -1,44 +1,37 @@
 """Contrato HTTP sin abrir puertos: ejercita los handlers con streams en memoria."""
 
-from io import BytesIO
 import json
+import re
 import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from terminal_pos.api import make_handlers
+from fastapi.testclient import TestClient
+from terminal_pos.api import make_app, make_mobile_app
 from terminal_pos.db import connect, initialize
 
 
-def call(handler_type, method, path, body=None, content_length=None, cookie=None, content_type="application/json"):
+def call(client, method, path, body=None, content_length=None, cookie=None, content_type="application/json"):
     raw_body = json.dumps(body).encode() if body is not None else b""
-    handler = object.__new__(handler_type)
-    handler.path = path
-    handler.command = method
-    handler.requestline = f"{method} {path} HTTP/1.1"
-    handler.request_version = "HTTP/1.1"
-    handler.headers = {"Content-Length": str(len(raw_body)) if content_length is None else content_length,
-                       "Content-Type": content_type,
-                       "Cookie": handler_type.test_cookie if cookie is None and hasattr(handler_type, "test_cookie") else cookie or ""}
-    handler.rfile = BytesIO(raw_body)
-    handler.wfile = BytesIO()
-    getattr(handler, "do_" + method)()
-    head, payload = handler.wfile.getvalue().split(b"\r\n\r\n", 1)
-    code = int(head.split(b" ", 2)[1])
-    if path == "/api/auth/login" and code == 200:
-        handler_type.test_cookie = next(line.split(b": ", 1)[1].split(b";", 1)[0].decode()
-                                        for line in head.split(b"\r\n") if line.startswith(b"Set-Cookie: "))
-    if b"application/json" in head:
+    headers = {"Content-Type": content_type}
+    if content_length is not None:
+        headers["Content-Length"] = content_length
+    if cookie is not None:
+        headers["Cookie"] = cookie
+    response = client.request(method, path, content=raw_body, headers=headers)
+    payload = response.content
+    if "application/json" in response.headers.get("content-type", ""):
         payload = json.loads(payload)
-    return code, payload
+    return response.status_code, payload
 
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=".")
         initialize(self.tmp.name)
-        self.desktop, self.mobile = make_handlers(self.tmp.name, "127.0.0.1", 8876)
+        self.desktop = TestClient(make_app(self.tmp.name, "127.0.0.1", 8876))
+        self.mobile = TestClient(make_mobile_app(self.tmp.name))
         self.assertEqual(call(self.desktop, "POST", "/api/auth/login", {"code": "1", "pin": "111111"})[0], 200)
 
     def tearDown(self):
@@ -50,8 +43,9 @@ class ApiTests(unittest.TestCase):
         self.assertIn(b"Simulador de terminal POS", page)
         self.assertIn(b'id="screenBatch"', page)
         self.assertIn(b'id="screenHistory"', page)
-        self.assertIn(b'data-card="DEB-001"', page)
-        self.assertIn(b'data-card="CRE-001"', page)
+        visible_cards = {card.decode() for card in re.findall(rb'data-card="([^"]+)"', page)}
+        demo_cards = {card["id"] for card in call(self.desktop, "GET", "/api/cards-demo")[1]}
+        self.assertEqual(visible_cards, demo_cards)
         self.assertIn(b'id="contactlessTarget"', page)
         self.assertIn(b'id="chipTarget"', page)
         self.assertIn(b'id="screenPin"', page)
@@ -117,14 +111,14 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(call(self.desktop, "GET", "/api/operations", cookie="wrong=token")[0], 401)
         self.assertEqual(call(self.desktop, "POST", "/api/batch/open", {}, cookie="wrong=token")[0], 401)
         call(self.desktop, "POST", "/api/batch/open", {"operator_id": 2})
-        first_cookie = self.desktop.test_cookie
+        first_cookie = self.desktop.cookies.get("pos_session")
         _, first = call(self.desktop, "POST", "/api/card/start",
                         {"request_id": "employee-one", "amount": 100, "card_id": "DEB-001"})
         _, first = call(self.desktop, "POST", "/api/card/submit",
                         {"request_id": "employee-one", "read_method": "CONTACTLESS"})
         self.assertEqual(first["operator_id"], 1)
         self.assertEqual(call(self.desktop, "POST", "/api/auth/login", {"code": "2", "pin": "222222"})[0], 200)
-        second_cookie = self.desktop.test_cookie
+        second_cookie = self.desktop.cookies.get("pos_session")
         self.assertEqual(call(self.desktop, "GET", "/api/operations")[1], [])
         self.assertEqual(call(self.desktop, "GET", "/api/ticket/" + first["id"])[0], 404)
         self.assertEqual(call(self.desktop, "GET", "/api/operation/" + first["id"])[0], 404)
@@ -136,7 +130,7 @@ class ApiTests(unittest.TestCase):
                          {"request_id": "employee-two", "read_method": "CONTACTLESS"})
         self.assertEqual(call(self.desktop, "GET", "/api/ticket/" + second["id"])[1]["operator"], "Operador dos")
         self.assertEqual([op["id"] for op in call(self.desktop, "GET", "/api/operations")[1]], [second["id"]])
-        self.desktop.test_cookie = first_cookie
+        self.desktop.cookies.set("pos_session", first_cookie)
         self.assertEqual([op["id"] for op in call(self.desktop, "GET", "/api/operations")[1]], [first["id"]])
         self.assertEqual(call(self.desktop, "GET", "/api/ticket/" + first["id"])[1]["operator"], "Operador demo")
         self.desktop.test_cookie = second_cookie
@@ -167,14 +161,14 @@ class ApiTests(unittest.TestCase):
 
     def test_only_batch_opener_can_close_and_pending_sales_are_cancelled(self):
         _, batch = call(self.desktop, "POST", "/api/batch/open", {})
-        first_cookie = self.desktop.test_cookie
+        first_cookie = self.desktop.cookies.get("pos_session")
         call(self.desktop, "POST", "/api/auth/login", {"code": "2", "pin": "222222"})
         _, pending = call(self.desktop, "POST", "/api/card/start",
                           {"request_id": "second-pending", "amount": 100, "card_id": "DEB-001"})
         self.assertEqual(pending["batch_id"], batch["id"])
         self.assertEqual(call(self.desktop, "POST", "/api/batch/close", {})[0], 403)
         self.assertEqual(call(self.desktop, "GET", "/api/batch")[1]["batch"]["closed_at"], None)
-        self.desktop.test_cookie = first_cookie
+        self.desktop.cookies.set("pos_session", first_cookie)
         self.assertEqual(call(self.desktop, "POST", "/api/batch/close", {})[0], 200)
         self.assertEqual(call(self.desktop, "GET", "/api/batch")[1]["net"], 0)
         with connect(self.tmp.name) as db:
@@ -202,7 +196,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(call(self.desktop, "POST", path, payload, cookie="pos_session=invalid")[0], 401)
         with connect(self.tmp.name) as db:
             self.assertNotEqual(db.execute("SELECT pin_digest FROM operator WHERE id=1").fetchone()[0], "111111")
-            token = self.desktop.test_cookie.split("=", 1)[1]
+            token = self.desktop.cookies.get("pos_session")
             digest = db.execute("SELECT token_digest FROM operator_session").fetchone()[0]
             self.assertNotEqual(digest, token)
             self.assertEqual(len(digest), 64)

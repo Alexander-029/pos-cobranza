@@ -48,8 +48,10 @@ Los PIN no se guardan en claro y solo se conservan los últimos cuatro dígitos 
 
 ## Pruebas
 
+Para las pruebas de la API, instalá también el cliente de desarrollo: `.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`.
+
 ```powershell
 .\.venv\Scripts\python.exe -m unittest test_terminal_pos.py test_terminal_api.py
 ```
 
-Las pruebas crean bases temporales; no modifican `terminal_pos/data/`.
+Las pruebas crean bases temporales; no modifican `terminal_pos/data/`. Mientras el POS está levantado, la API se puede explorar en `http://127.0.0.1:8875/docs`.
