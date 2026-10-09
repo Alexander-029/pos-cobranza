@@ -213,6 +213,81 @@ class TerminalTests(unittest.TestCase):
         self.assertEqual((row["merchant_name"], row["operator_name"]),
                          ("Comercio de prueba", "Operador demo"))
 
+    def test_parallel_distinct_sales_never_overdraw_or_break_relations(self):
+        pos.open_batch(self.directory)
+        for number in range(8):
+            pos.start_card(self.directory, f"stress-{number}", 30_000, "DEB-001")
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda number: pos.submit_card(
+                self.directory, f"stress-{number}", "CONTACTLESS"), range(8)))
+        self.assertEqual(sum(row["status"] == "APPROVED" for row in results), 5)
+        self.assertEqual(sum(row["status"] == "DECLINED" for row in results), 3)
+        self.assertEqual(self.available("CTA-001"), 0)
+        self.assertEqual(pos.batch_summary(self.directory)["net"], 150_000)
+        with connect(self.directory) as db:
+            self.assertEqual(db.execute("PRAGMA quick_check").fetchone()[0], "ok")
+            self.assertEqual(db.execute("PRAGMA emisor.quick_check").fetchone()[0], "ok")
+            self.assertEqual(db.execute("PRAGMA foreign_key_check").fetchall(), [])
+            self.assertEqual(db.execute("PRAGMA emisor.foreign_key_check").fetchall(), [])
+
+    def test_parallel_voids_restore_funds_exactly_once(self):
+        pos.open_batch(self.directory)
+        sale = self.sale("void-race-sale", 40_000, "DEB-001", "CONTACTLESS")
+        def attempt(number):
+            try:
+                return pos.void_sale(self.directory, f"void-race-{number}", sale["id"])["status"]
+            except pos.PosError as error:
+                return error.code
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            outcomes = list(pool.map(attempt, range(6)))
+        self.assertEqual(outcomes.count("APPROVED"), 1)
+        self.assertEqual(outcomes.count("ALREADY_VOIDED"), 5)
+        self.assertEqual(self.available("CTA-001"), 150_000)
+        self.assertEqual(pos.batch_summary(self.directory)["net"], 0)
+
+    def test_amount_boundaries_do_not_create_invalid_debits(self):
+        pos.open_batch(self.directory)
+        self.assertEqual(self.sale("smallest", 1, "DEB-001", "CONTACTLESS")["status"], "APPROVED")
+        self.assertEqual(self.available("CTA-001"), 149_999)
+        self.assertEqual(self.sale("largest", 100_000_000, "CRE-001", "CONTACTLESS")["response_code"], "LIMIT_EXCEEDED")
+        with self.assertRaises(pos.PosError):
+            pos.start_card(self.directory, "too-large", 100_000_001, "DEB-001")
+        self.assertEqual(self.available("LIN-001"), 200_000)
+
+    def test_operator_migration_preserves_an_approved_old_payment(self):
+        batch = pos.open_batch(self.directory)
+        old_db = Path(self.directory) / "terminal.db"
+        with closing(sqlite3.connect(old_db)) as db:
+            db.executescript("""
+                DROP TABLE operation;
+                CREATE TABLE operation (
+                    id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
+                    batch_id INTEGER NOT NULL REFERENCES batch(id),
+                    kind TEXT NOT NULL, status TEXT NOT NULL, amount INTEGER NOT NULL,
+                    card_id TEXT, card_type TEXT, last4 TEXT, read_method TEXT,
+                    installments INTEGER, verification TEXT, response_code TEXT,
+                    authorization_code TEXT, original_id TEXT,
+                    created_at TEXT NOT NULL, completed_at TEXT
+                );
+                DROP TABLE operator;
+                CREATE TABLE operator(id INTEGER PRIMARY KEY,name TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1);
+                INSERT INTO operator VALUES (1,'Operador demo',1);
+            """)
+            db.execute("""INSERT INTO operation
+                (id,request_id,batch_id,kind,status,amount,card_id,card_type,last4,
+                 read_method,installments,response_code,authorization_code,created_at,completed_at)
+                VALUES ('old-payment','old-request',?,'CARD','APPROVED',1000,'DEB-001','DEBIT','4101',
+                        'CONTACTLESS',1,'APPROVED','LEGACY','2026-01-01T00:00:00+00:00','2026-01-01T00:00:01+00:00')""",
+                       (batch["id"],))
+            db.commit()
+        initialize(self.directory)
+        with connect(self.directory) as db:
+            operation = db.execute("SELECT operator_id,operator_name FROM operation WHERE id='old-payment'").fetchone()
+            self.assertEqual((operation["operator_id"], operation["operator_name"]), (1, "Operador demo"))
+            self.assertEqual(db.execute("PRAGMA foreign_key_check").fetchall(), [])
+        self.assertEqual(pos.ticket(self.directory, "old-payment", 1)["amount"], 1000)
+        self.assertEqual(pos.batch_summary(self.directory)["net"], 1000)
+
 
 if __name__ == "__main__":
     unittest.main()

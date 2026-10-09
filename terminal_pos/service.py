@@ -297,9 +297,11 @@ def batch_summary(directory, batch_id=None):
         return {"batch": as_dict(batch), "groups": rows, "sales": sales, "voids": voids, "net": sales - voids}
 
 
-def close_batch(directory):
+def close_batch(directory, operator_id=None):
     with connect(directory) as db, transaction(db):
         batch = _open_batch(db)
+        if operator_id is not None and batch["operator_id"] != operator_id:
+            raise PosError("BATCH_OWNER", "Solo quien abrió el lote puede cerrarlo", 403)
         db.execute("""UPDATE operation SET status='CANCELLED',response_code='BATCH_CLOSED',
             completed_at=? WHERE batch_id=? AND status='PENDING'""", (utc_now(), batch["id"]))
         db.execute("UPDATE batch SET closed_at=? WHERE id=?", (utc_now(), batch["id"]))

@@ -42,5 +42,6 @@ El lote conserva el nombre del comercio al abrirse; cada operación conserva el 
 6. Cerrar el lote cancela solicitudes pendientes. Una venta del lote cerrado no puede anularse allí.
 7. Una venta de tarjeta pendiente puede cancelarse antes de la autorización. Repetir la cancelación conserva el resultado; enviar un PIN después no la aprueba ni descuenta saldo.
 8. Sin sesión, la API del POS rechaza consultas y cobros. Un empleado no puede consultar, completar, cancelar ni anular la operación de otro. El token QR temporal del celular solo confirma esa solicitud ficticia.
+9. Un lote pertenece a la terminal y puede registrar pagos de varios empleados; solo quien lo abrió puede cerrarlo. Al cerrar, todas las operaciones pendientes de ese lote se cancelan.
 
 Los archivos [test_terminal_pos.py](../test_terminal_pos.py) y [test_terminal_api.py](../test_terminal_api.py) comprueban estas reglas sobre bases temporales.

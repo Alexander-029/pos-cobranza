@@ -2,14 +2,16 @@
 
 from io import BytesIO
 import json
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from terminal_pos.api import make_handlers
-from terminal_pos.db import initialize
+from terminal_pos.db import connect, initialize
 
 
-def call(handler_type, method, path, body=None, content_length=None, cookie=None):
+def call(handler_type, method, path, body=None, content_length=None, cookie=None, content_type="application/json"):
     raw_body = json.dumps(body).encode() if body is not None else b""
     handler = object.__new__(handler_type)
     handler.path = path
@@ -17,6 +19,7 @@ def call(handler_type, method, path, body=None, content_length=None, cookie=None
     handler.requestline = f"{method} {path} HTTP/1.1"
     handler.request_version = "HTTP/1.1"
     handler.headers = {"Content-Length": str(len(raw_body)) if content_length is None else content_length,
+                       "Content-Type": content_type,
                        "Cookie": handler_type.test_cookie if cookie is None and hasattr(handler_type, "test_cookie") else cookie or ""}
     handler.rfile = BytesIO(raw_body)
     handler.wfile = BytesIO()
@@ -83,6 +86,20 @@ class ApiTests(unittest.TestCase):
                             content_length="not-a-number")
         self.assertEqual((status, body["error"]), (400, "INVALID_BODY"))
 
+    def test_browser_form_content_type_cannot_submit_payment(self):
+        status, body = call(self.desktop, "POST", "/api/batch/open", {}, content_type="text/plain")
+        self.assertEqual((status, body["error"]), (415, "INVALID_CONTENT_TYPE"))
+        self.assertEqual(call(self.desktop, "POST", "/api/batch/open", {},
+                              content_type="application/json; charset=utf-8")[0], 200)
+
+    def test_missing_qr_library_does_not_leave_pending_operation(self):
+        call(self.desktop, "POST", "/api/batch/open", {})
+        with patch.dict(sys.modules, {"segno": None}):
+            status, body = call(self.desktop, "POST", "/api/qr/start",
+                                {"request_id": "missing-library", "amount": 100})
+        self.assertEqual((status, body["error"]), (503, "QR_DEPENDENCY_MISSING"))
+        self.assertEqual(call(self.desktop, "GET", "/api/operations")[1], [])
+
     def test_mobile_qr_confirms_same_operation_once(self):
         call(self.desktop, "POST", "/api/batch/open", {})
         status, qr = call(self.desktop, "POST", "/api/qr/start", {"request_id": "qr-web", "amount": 200})
@@ -147,6 +164,48 @@ class ApiTests(unittest.TestCase):
                               {"request_id": "private-card", "amount": 100, "card_id": "DEB-001"})[0], 404)
         self.assertEqual(call(self.mobile, "POST", "/qr/" + qr["token"])[0], 200)
         self.assertEqual(call(self.desktop, "GET", "/api/ticket/" + card["id"])[0], 404)
+
+    def test_only_batch_opener_can_close_and_pending_sales_are_cancelled(self):
+        _, batch = call(self.desktop, "POST", "/api/batch/open", {})
+        first_cookie = self.desktop.test_cookie
+        call(self.desktop, "POST", "/api/auth/login", {"code": "2", "pin": "222222"})
+        _, pending = call(self.desktop, "POST", "/api/card/start",
+                          {"request_id": "second-pending", "amount": 100, "card_id": "DEB-001"})
+        self.assertEqual(pending["batch_id"], batch["id"])
+        self.assertEqual(call(self.desktop, "POST", "/api/batch/close", {})[0], 403)
+        self.assertEqual(call(self.desktop, "GET", "/api/batch")[1]["batch"]["closed_at"], None)
+        self.desktop.test_cookie = first_cookie
+        self.assertEqual(call(self.desktop, "POST", "/api/batch/close", {})[0], 200)
+        self.assertEqual(call(self.desktop, "GET", "/api/batch")[1]["net"], 0)
+        with connect(self.tmp.name) as db:
+            self.assertEqual(db.execute("SELECT status FROM operation WHERE id=?", (pending["id"],)).fetchone()[0], "CANCELLED")
+
+    def test_expired_session_and_non_ascii_code_are_rejected(self):
+        self.assertEqual(call(self.desktop, "POST", "/api/auth/login", {"code": "²", "pin": "111111"})[0], 401)
+        self.assertEqual(call(self.desktop, "POST", "/api/auth/login", {"code": 1, "pin": "111111"})[0], 401)
+        with connect(self.tmp.name) as db:
+            db.execute("UPDATE operator_session SET expires_at='2000-01-01T00:00:00+00:00'")
+        self.assertEqual(call(self.desktop, "GET", "/api/auth/me")[0], 401)
+        self.assertEqual(call(self.desktop, "POST", "/api/auth/login", {"code": "1", "pin": "111111"})[0], 200)
+        with connect(self.tmp.name) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM operator_session").fetchone()[0], 1)
+
+    def test_payment_endpoints_require_session_and_secrets_are_not_plaintext(self):
+        for path in ("/api/batch", "/api/cards-demo", "/api/operations", "/api/ticket/unknown"):
+            self.assertEqual(call(self.desktop, "GET", path, cookie="pos_session=invalid")[0], 401)
+        for path, payload in (
+            ("/api/batch/open", {}),
+            ("/api/card/start", {"request_id": "guess-card", "amount": 1, "card_id": "DEB-001"}),
+            ("/api/qr/start", {"request_id": "guess-qr", "amount": 1}),
+            ("/api/void", {"request_id": "guess-void", "original_id": "unknown"}),
+        ):
+            self.assertEqual(call(self.desktop, "POST", path, payload, cookie="pos_session=invalid")[0], 401)
+        with connect(self.tmp.name) as db:
+            self.assertNotEqual(db.execute("SELECT pin_digest FROM operator WHERE id=1").fetchone()[0], "111111")
+            token = self.desktop.test_cookie.split("=", 1)[1]
+            digest = db.execute("SELECT token_digest FROM operator_session").fetchone()[0]
+            self.assertNotEqual(digest, token)
+            self.assertEqual(len(digest), 64)
 
 
 if __name__ == "__main__":

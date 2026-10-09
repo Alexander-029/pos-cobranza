@@ -1,6 +1,26 @@
-# POS de cobranzas — MVP educativo
+# Simuladores POS educativos
 
-> **Nuevo módulo:** [Terminal POS simulado](terminal_pos/README.md) para pagos ficticios con débito, crédito y QR. Es independiente del cobrador de facturas descrito abajo; la vista representa un terminal físico y sus animaciones, mientras la autorización sigue en el backend.
+Este repositorio contiene **dos simuladores independientes**. El desarrollo actual es el [terminal de pagos con tarjeta y QR](terminal_pos/README.md), que se abre en el puerto **8875**. El cobrador de facturas de ANDE, ESSAP y Tigo descrito más abajo es el prototipo anterior y usa el puerto **8765**. Ninguno mueve dinero real.
+
+Las pruebas ejecutadas y sus límites están en la [verificación del terminal](docs/verificacion-terminal-pos.md).
+
+## Ejecutar el terminal de pagos (Windows / PowerShell)
+
+Requiere Python 3.10 o posterior y Git. En una consola nueva:
+
+```powershell
+git clone https://github.com/Alexander-029/pos-cobranza.git
+cd pos-cobranza
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m terminal_pos.api --mobile-host 127.0.0.1
+```
+
+Dejá abierta esa consola y entrá a `http://127.0.0.1:8875/`. Si el entorno virtual se creó sin `pip`, ejecutá `.\.venv\Scripts\python.exe -m ensurepip --upgrade` y repetí la instalación. Para escanear el QR con un celular de la misma red, usá la IPv4 Wi-Fi de tu PC en `--mobile-host` en lugar de `127.0.0.1`; la página de confirmación escuchará en `TU_IP:8876`.
+
+**Prueba mínima de cobro exitoso:** ingresá como empleado `1` con PIN `111111`; abrí un lote en **Lote**; volvé a **Venta**, marcá **Gs. 1.000**, elegí **Tarjeta** y arrastrá la tarjeta de débito al lector superior. Deberían aparecer «Cobro aprobado», el papel simulado y un ticket. Para probar chip, insertá la tarjeta abajo e ingresá su PIN ficticio `1234`. Si ese recorrido falla, anotá el paso y el mensaje mostrado. Los perfiles y límites completos están en la [guía del terminal](terminal_pos/README.md).
+
+## Prototipo anterior: cobrador de facturas
 
 Simula una boca de cobranzas que consulta facturas de ANDE, ESSAP y Tigo Hogar. La interfaz conserva el estilo sobrio de tablas del prototipo aprobado. **No hay conexión con esas empresas ni movimiento de dinero real.**
 

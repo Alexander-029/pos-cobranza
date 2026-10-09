@@ -17,7 +17,7 @@
   <div class="device-area" id="deviceArea">
     <div class="receipt-paper" id="receiptPaper" aria-hidden="true">POS LAB<br>COMPROBANTE<div class="paper-line"></div>Gs. <span id="paperAmount">—</span><br>APROBADO</div>
     <div class="pos-device">
-      <div class="device-top"><div class="printer-slot"></div><div class="reader-zone" id="contactlessTarget"><span class="nfc-glyph" aria-hidden="true">◔</span><small>ACERCÁ AQUÍ</small><span class="reader-wave wave-one"></span><span class="reader-wave wave-two"></span></div></div>
+      <div class="device-top"><div class="printer-slot"></div><div class="reader-zone" id="contactlessTarget" role="button" tabindex="0" aria-label="Leer la tarjeta elegida sin contacto"><span class="nfc-glyph" aria-hidden="true">◔</span><small>ACERCÁ AQUÍ</small><span class="reader-wave wave-one"></span><span class="reader-wave wave-two"></span></div></div>
       <div class="device-bezel"><div class="device-screen">
         <header class="screen-header"><button id="backButton" class="header-back" type="button" aria-label="Volver">‹</button><strong>pos<span>·</span>lab</strong><button id="logoutButton" class="logout-button hidden" type="button">Salir</button><time id="screenClock">00:00</time></header>
         <div class="screen-content">
@@ -51,7 +51,7 @@
             <div class="selected-card">Tarjeta elegida<strong id="chosenCard">Elegí débito o crédito</strong></div>
             <label for="installments">Plan</label><select id="installments"><option value="1">Contado</option></select>
             <div class="read-instructions"><div><b>⌁</b><span>Acercá la tarjeta a la zona violeta superior para pagar sin contacto.</span></div><div><b>▣</b><span>Insertá la tarjeta en la ranura inferior para leer el chip.</span></div></div>
-            <p class="field-note">Perfiles y PIN ficticios en la <a href="README.md" target="_blank" rel="noopener">guía de prueba</a>.</p>
+            <p class="field-note">Arrastrá la tarjeta. Si tu dispositivo no permite arrastrar, elegila y tocá el lector superior o la ranura inferior. Perfiles y PIN ficticios en la <a href="README.md" target="_blank" rel="noopener">guía de prueba</a>.</p>
           </section>
           <section id="screenCard" class="screen-view centered hidden" aria-live="polite">
             <div class="screen-kicker">PAGO CON TARJETA</div><div class="mini-amount">Gs. <strong id="cardAmount">—</strong></div>
@@ -78,13 +78,13 @@
           </section>
           <section id="screenProcessing" class="screen-view centered hidden" aria-live="polite"><div class="processing-orbit" aria-hidden="true"></div><h1>Consultando autorización</h1><p>Esperá la respuesta del emisor simulado.</p></section>
           <section id="screenResult" class="screen-view centered hidden" aria-live="polite"><div class="result-emblem" id="resultEmblem" aria-hidden="true">✓</div><div class="screen-kicker" id="resultKicker">RESULTADO</div><h1 id="resultTitle">Operación completa</h1><p id="resultDetail"></p><div class="result-amount">Gs. <strong id="resultAmount">—</strong></div><button id="viewTicket" class="secondary hidden" type="button">Ver comprobante</button><button id="newSale" class="primary" type="button">Nueva venta</button></section>
-          <section id="screenBatch" class="screen-view hidden"><div class="screen-kicker">ADMINISTRACIÓN</div><h1>Lote del terminal</h1><div class="batch-card"><small>ESTADO</small><strong id="batchDetail">Sin abrir</strong><small>VENTAS</small><strong id="salesTotal">Gs. —</strong><small>NETO</small><strong id="netTotal">Gs. —</strong></div><button id="openBatch" class="primary" type="button">Abrir lote</button><button id="closeBatch" class="secondary" type="button">Cerrar lote</button><p class="field-note">Solo se registran operaciones ficticias de este terminal.</p></section>
+          <section id="screenBatch" class="screen-view hidden"><div class="screen-kicker">ADMINISTRACIÓN</div><h1>Lote del terminal</h1><div class="batch-card"><small>ESTADO</small><strong id="batchDetail">Sin abrir</strong><small>VENTAS</small><strong id="salesTotal">Gs. —</strong><small>NETO</small><strong id="netTotal">Gs. —</strong></div><button id="openBatch" class="primary" type="button">Abrir lote</button><button id="closeBatch" class="secondary" type="button">Cerrar lote</button><p class="field-note" id="batchOwnerNote">Solo se registran operaciones ficticias de este terminal.</p></section>
           <section id="screenHistory" class="screen-view hidden"><div class="screen-kicker">REGISTRO LOCAL</div><h1>Mis cobros</h1><div id="operations" class="operations"><p class="empty-state">Todavía no hay operaciones.</p></div><button id="refresh" class="text-button" type="button">Actualizar lista</button></section>
           <section id="screenTicket" class="screen-view hidden"><div class="screen-kicker">COMPROBANTE</div><h1>Ticket de venta</h1><pre id="ticket">Seleccioná una operación aprobada.</pre><button id="printTicket" class="primary" type="button" disabled>Imprimir o guardar</button></section>
         </div>
         <nav class="screen-nav" aria-label="Menú del terminal"><button id="navHome" type="button">⌂<small>Venta</small></button><button id="navBatch" type="button">▤<small>Lote</small></button><button id="navHistory" type="button">▦<small>Historial</small></button></nav>
       </div></div>
-      <div class="chip-slot" id="chipTarget"><span></span></div><div class="device-foot"><span>POS-001</span><span>SIMULADOR · SIN DINERO REAL</span></div>
+      <div class="chip-slot" id="chipTarget" role="button" tabindex="0" aria-label="Leer el chip de la tarjeta elegida"><span></span></div><div class="device-foot"><span>POS-001</span><span>SIMULADOR · SIN DINERO REAL</span></div>
     </div>
   </div>
   <div id="result" class="sr-only" role="status" aria-live="polite">Esperando operación.</div>

@@ -39,6 +39,9 @@ def make_handlers(directory, mobile_host=None, mobile_port=8876):
             self.wfile.write(data)
 
         def input(self):
+            media_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+            if media_type != "application/json":
+                raise pos.PosError("INVALID_CONTENT_TYPE", "Se requiere application/json", 415)
             try:
                 length = int(self.headers.get("Content-Length", "0"))
             except (TypeError, ValueError):
@@ -137,7 +140,7 @@ def make_handlers(directory, mobile_host=None, mobile_port=8876):
                 return
             routes = {
                 "/api/batch/open": lambda: pos.open_batch(directory, operator_id),
-                "/api/batch/close": lambda: pos.close_batch(directory),
+                "/api/batch/close": lambda: pos.close_batch(directory, operator_id),
                 "/api/card/start": lambda: pos.start_card(directory, data.get("request_id"), data.get("amount"), data.get("card_id"), operator_id),
                 "/api/card/submit": lambda: pos.submit_card(directory, data.get("request_id"), data.get("read_method"),
                      data.get("installments", 1), data.get("pin"), data.get("attempt_id"), operator_id),
@@ -149,9 +152,12 @@ def make_handlers(directory, mobile_host=None, mobile_port=8876):
                 def start():
                     if mobile_host is None:
                         raise pos.PosError("QR_UNAVAILABLE", "Iniciá con --mobile-host para probar QR desde un celular", 409)
+                    try:
+                        import segno
+                    except ImportError:
+                        raise pos.PosError("QR_DEPENDENCY_MISSING", "Instalá requirements.txt para generar el QR", 503) from None
                     result = pos.start_qr(directory, data.get("request_id"), data.get("amount"), operator_id=operator_id)
                     result["url"] = f"http://{mobile_host}:{mobile_port}/qr/{result['token']}"
-                    import segno
                     result["svg"] = segno.make(result["url"]).svg_inline(scale=4)
                     return result
                 self.execute(start)

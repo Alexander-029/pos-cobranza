@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import secrets
+import re
 
 from .db import connect, operator_pin_hash, transaction, utc_now
 from .service import PosError
@@ -19,10 +20,11 @@ def _digest(token):
 
 
 def login(directory, code, pin):
-    if not isinstance(code, str) or not code.isdecimal() or len(code) > 6 or not isinstance(pin, str) or not pin.isdecimal() or len(pin) != 6:
+    if not isinstance(code, str) or re.fullmatch(r"[0-9]{1,6}", code) is None or not isinstance(pin, str) or re.fullmatch(r"[0-9]{6}", pin) is None:
         raise PosError("INVALID_CREDENTIALS", "Código o PIN incorrecto", 401)
     now = datetime.now(timezone.utc)
     with connect(directory) as db, transaction(db):
+        db.execute("DELETE FROM operator_session WHERE expires_at<=?", (utc_now(),))
         row = db.execute("SELECT * FROM operator WHERE id=? AND active=1", (int(code),)).fetchone()
         if row is None:
             raise PosError("INVALID_CREDENTIALS", "Código o PIN incorrecto", 401)

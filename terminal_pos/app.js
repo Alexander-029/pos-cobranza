@@ -60,7 +60,7 @@ function screen(id) {
   $('cardTray').classList.toggle('is-ready', cardReady);
   $('cardTrayHint').textContent = id === 'screenCard' && needsChip
     ? 'Insertá la misma tarjeta en la ranura inferior.'
-    : cardReady ? 'Arrastrá débito o crédito al lector superior o a la ranura inferior.'
+    : cardReady ? 'Arrastrá la tarjeta al lector o elegila y tocá el lector.'
       : 'Primero ingresá el monto y elegí Tarjeta en el POS.';
   $('backButton').disabled = busy || !!activeQr || ['screenLogin', 'screenHome', 'screenCard', 'screenPin', 'screenQr', 'screenProcessing'].includes(id);
   for (const [button, view] of [['navHome', 'screenHome'], ['navBatch', 'screenBatch'], ['navHistory', 'screenHistory']]) {
@@ -72,7 +72,7 @@ function updateControls() {
   const open = batch && !batch.closed_at;
   $('screenPay').disabled = busy || !open || !!activeQr;
   $('openBatch').disabled = busy || !!open || !!activeQr;
-  $('closeBatch').disabled = busy || !open || !!activeQr;
+  $('closeBatch').disabled = busy || !open || !!activeQr || batch.operator_id !== employee?.id;
   updatePinDisplay();
   $('cancelQr').disabled = busy;
   $('cancelCard').disabled = busy;
@@ -272,6 +272,31 @@ function bindCards() {
       element.style.transform = '';
     });
   }
+  for (const [id, method] of [['contactlessTarget', 'CONTACTLESS'], ['chipTarget', 'CHIP']]) {
+    const target = $(id);
+    target.addEventListener('click', () => activateReader(method));
+    target.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      activateReader(method);
+    });
+  }
+}
+function activateReader(method) {
+  if (busy || activeQr || (currentView !== 'screenCardSelect' && !(currentView === 'screenCard' && needsChip))) return;
+  if (currentView === 'screenCard' && method !== 'CHIP') return;
+  if (!selectedCardId) { announce('Elegí una tarjeta de prueba primero.'); return; }
+  const card = [...document.querySelectorAll('.wallet-card')].find(item => item.dataset.card === selectedCardId);
+  if (!card) return;
+  run(async () => {
+    await animateCardRead(card, method, card.getBoundingClientRect());
+    if (currentView === 'screenCardSelect') await startCard(method);
+    else {
+      readMethod = 'CHIP';
+      needsChip = false;
+      await processCard();
+    }
+  });
 }
 async function processCard(pin) {
   if (pin === undefined) {
@@ -460,6 +485,9 @@ async function refresh() {
     $('screenMessage').textContent = open ? 'Ingresá el importe y tocá Cobrar.' : 'Abrí un lote en el menú inferior para comenzar.';
   }
   $('batchDetail').textContent = !batch ? 'Sin abrir' : `#${batch.id} · ${open ? 'Abierto' : 'Cerrado'}`;
+  $('batchOwnerNote').textContent = open && batch.operator_id !== employee?.id
+    ? `Lote abierto por ${batch.operator_name}. Solo ese empleado puede cerrarlo.`
+    : 'El resumen reúne las operaciones ficticias de esta terminal.';
   $('salesTotal').textContent = `Gs. ${money(summary?.sales)}`;
   $('netTotal').textContent = `Gs. ${money(summary?.net)}`;
   updateControls();
