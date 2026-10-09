@@ -1,5 +1,7 @@
 # POS de cobranzas — MVP educativo
 
+> **Nuevo módulo:** [Terminal POS simulado](terminal_pos/README.md) para pagos ficticios con débito, crédito y QR. Es independiente del cobrador de facturas descrito abajo; la vista representa un terminal físico y sus animaciones, mientras la autorización sigue en el backend.
+
 Simula una boca de cobranzas que consulta facturas de ANDE, ESSAP y Tigo Hogar. La interfaz conserva el estilo sobrio de tablas del prototipo aprobado. **No hay conexión con esas empresas ni movimiento de dinero real.**
 
 ## Ejecutar

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>POS Lab · Terminal de pagos</title>
+  <link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+</head>
+<body>
+<main class="scene" aria-label="Simulador de terminal POS">
+  <aside class="card-tray" id="cardTray" aria-label="Tarjetas ficticias para presentar al POS">
+    <div class="tray-heading">TARJETAS DE PRUEBA</div>
+    <p id="cardTrayHint">Primero ingresá el monto y elegí Tarjeta en el POS.</p>
+    <button class="wallet-card debit-card" type="button" data-card="DEB-001" aria-label="Tarjeta de débito ficticia DEB-001"><span>POS LAB · DÉBITO</span><i></i><b>•••• •••• •••• 4101</b><small>DEB-001 · PRUEBA</small></button>
+    <button class="wallet-card credit-card" type="button" data-card="CRE-001" aria-label="Tarjeta de crédito ficticia CRE-001"><span>POS LAB · CRÉDITO</span><i></i><b>•••• •••• •••• 5201</b><small>CRE-001 · PRUEBA</small></button>
+    <p class="tray-note">Sin valor real. El resultado lo decide el emisor simulado.</p>
+  </aside>
+  <div class="device-area" id="deviceArea">
+    <div class="receipt-paper" id="receiptPaper" aria-hidden="true">POS LAB<br>COMPROBANTE<div class="paper-line"></div>Gs. <span id="paperAmount">—</span><br>APROBADO</div>
+    <div class="pos-device">
+      <div class="device-top"><div class="printer-slot"></div><div class="reader-zone" id="contactlessTarget"><span class="nfc-glyph" aria-hidden="true">◔</span><small>ACERCÁ AQUÍ</small><span class="reader-wave wave-one"></span><span class="reader-wave wave-two"></span></div></div>
+      <div class="device-bezel"><div class="device-screen">
+        <header class="screen-header"><button id="backButton" class="header-back" type="button" aria-label="Volver">‹</button><strong>pos<span>·</span>lab</strong><button id="logoutButton" class="logout-button hidden" type="button">Salir</button><time id="screenClock">00:00</time></header>
+        <div class="screen-content">
+          <section id="screenLogin" class="screen-view login-view">
+            <div class="screen-kicker">ACCESO AL TERMINAL</div><h1>Ingresá como empleado</h1>
+            <p>El PIN del empleado es distinto del PIN de la tarjeta.</p>
+            <form id="loginForm" autocomplete="off">
+              <label for="operatorCode">Código de empleado</label><input id="operatorCode" type="text" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" required autocomplete="username">
+              <label for="operatorPin">PIN de empleado</label><input id="operatorPin" type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="current-password">
+              <button id="loginButton" class="primary" type="submit">Ingresar</button>
+            </form><p id="loginMessage" class="login-message" role="alert"></p>
+          </section>
+          <section id="screenHome" class="screen-view hidden">
+            <div class="screen-kicker">NUEVA VENTA</div><div class="batch-line" id="batchState">Consultando lote…</div><p class="screen-message" id="screenMessage">Abrí un lote en el menú inferior para comenzar.</p>
+            <p class="prompt">Ingresá el importe</p><div class="amount"><small>Gs.</small><strong id="screenAmount">120.000</strong></div>
+            <div class="keypad" id="keypad" aria-label="Teclado de importe">
+              <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+              <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+              <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+              <button type="button" data-key="back" aria-label="Borrar último dígito">⌫</button><button type="button" data-key="0">0</button><button type="button" data-key="000">000</button>
+            </div><button id="screenPay" class="primary" type="button">Cobrar <span>→</span></button>
+          </section>
+          <section id="screenMethod" class="screen-view hidden">
+            <div class="screen-kicker">PASO 1 DE 2</div><div class="mini-amount">Gs. <strong id="methodAmount">—</strong></div>
+            <h1>Elegí cómo cobrar</h1><p>Seleccioná el medio para esta venta ficticia.</p>
+            <button id="methodCard" class="choice" type="button"><span class="choice-icon">▣</span><span><b>Tarjeta</b><small>Débito o crédito</small></span><span>›</span></button>
+            <button id="methodQr" class="choice" type="button"><span class="choice-icon">▦</span><span><b>Código QR</b><small>Confirmación desde el celular</small></span><span>›</span></button>
+          </section>
+          <section id="screenCardSelect" class="screen-view hidden">
+            <div class="screen-kicker">PASO 2 DE 2 · TARJETA</div><div class="mini-amount">Gs. <strong id="selectAmount">—</strong></div>
+            <div class="selected-card">Tarjeta elegida<strong id="chosenCard">Elegí débito o crédito</strong></div>
+            <label for="installments">Plan</label><select id="installments"><option value="1">Contado</option></select>
+            <div class="read-instructions"><div><b>⌁</b><span>Acercá la tarjeta a la zona violeta superior para pagar sin contacto.</span></div><div><b>▣</b><span>Insertá la tarjeta en la ranura inferior para leer el chip.</span></div></div>
+            <p class="field-note">Perfiles y PIN ficticios en la <a href="README.md" target="_blank" rel="noopener">guía de prueba</a>.</p>
+          </section>
+          <section id="screenCard" class="screen-view centered hidden" aria-live="polite">
+            <div class="screen-kicker">PAGO CON TARJETA</div><div class="mini-amount">Gs. <strong id="cardAmount">—</strong></div>
+            <div class="instruction-icon" id="cardInstructionIcon" aria-hidden="true">⌁</div><h1 id="cardInstruction">Presentá la tarjeta</h1><p id="cardHint">Seguí la indicación del terminal.</p>
+            <button id="cancelCard" class="text-button" type="button">Cancelar esta venta</button>
+          </section>
+          <section id="screenPin" class="screen-view centered hidden" aria-live="polite">
+            <div class="screen-kicker">VERIFICACIÓN DE TARJETA</div>
+            <div class="mini-amount">Gs. <strong id="pinAmount">—</strong></div>
+            <div class="pin-lock" aria-hidden="true">●</div>
+            <h1 id="pinTitle">Ingresá tu PIN</h1>
+            <p>Solo el PIN ficticio de la tarjeta de prueba.</p>
+            <div class="pin-dots" id="pinDots" aria-label="PIN vacío"><span></span><span></span><span></span><span></span></div>
+            <div class="pin-keypad" id="pinKeypad" aria-label="Teclado de PIN">
+              <button type="button" data-pin="1">1</button><button type="button" data-pin="2">2</button><button type="button" data-pin="3">3</button>
+              <button type="button" data-pin="4">4</button><button type="button" data-pin="5">5</button><button type="button" data-pin="6">6</button>
+              <button type="button" data-pin="7">7</button><button type="button" data-pin="8">8</button><button type="button" data-pin="9">9</button>
+              <button type="button" data-pin="back" aria-label="Borrar último dígito">⌫</button><button type="button" data-pin="0">0</button><button type="button" data-pin="clear" aria-label="Borrar PIN">C</button>
+            </div>
+            <div class="pin-footer"><small id="pinAttempts">Intentos restantes: 3</small><button id="submitPin" class="primary" type="button">Confirmar PIN</button><button id="cancelPin" class="text-button" type="button">Cancelar esta venta</button></div>
+          </section>
+          <section id="screenQr" class="screen-view centered hidden" aria-live="polite">
+            <div class="screen-kicker">PAGO CON QR</div><div class="mini-amount">Gs. <strong id="qrAmount">—</strong></div><p>Escaneá y confirmá en tu teléfono</p><div class="qr-image" id="qrImage"></div><div class="qr-timer" id="qrTimer">Esperando confirmación…</div><a id="qrLink" class="qr-link" target="_blank" rel="noopener">Abrir página de prueba</a><button id="cancelQr" class="text-button" type="button">Cancelar QR</button>
+          </section>
+          <section id="screenProcessing" class="screen-view centered hidden" aria-live="polite"><div class="processing-orbit" aria-hidden="true"></div><h1>Consultando autorización</h1><p>Esperá la respuesta del emisor simulado.</p></section>
+          <section id="screenResult" class="screen-view centered hidden" aria-live="polite"><div class="result-emblem" id="resultEmblem" aria-hidden="true">✓</div><div class="screen-kicker" id="resultKicker">RESULTADO</div><h1 id="resultTitle">Operación completa</h1><p id="resultDetail"></p><div class="result-amount">Gs. <strong id="resultAmount">—</strong></div><button id="viewTicket" class="secondary hidden" type="button">Ver comprobante</button><button id="newSale" class="primary" type="button">Nueva venta</button></section>
+          <section id="screenBatch" class="screen-view hidden"><div class="screen-kicker">ADMINISTRACIÓN</div><h1>Lote del terminal</h1><div class="batch-card"><small>ESTADO</small><strong id="batchDetail">Sin abrir</strong><small>VENTAS</small><strong id="salesTotal">Gs. —</strong><small>NETO</small><strong id="netTotal">Gs. —</strong></div><button id="openBatch" class="primary" type="button">Abrir lote</button><button id="closeBatch" class="secondary" type="button">Cerrar lote</button><p class="field-note">Solo se registran operaciones ficticias de este terminal.</p></section>
+          <section id="screenHistory" class="screen-view hidden"><div class="screen-kicker">REGISTRO LOCAL</div><h1>Mis cobros</h1><div id="operations" class="operations"><p class="empty-state">Todavía no hay operaciones.</p></div><button id="refresh" class="text-button" type="button">Actualizar lista</button></section>
+          <section id="screenTicket" class="screen-view hidden"><div class="screen-kicker">COMPROBANTE</div><h1>Ticket de venta</h1><pre id="ticket">Seleccioná una operación aprobada.</pre><button id="printTicket" class="primary" type="button" disabled>Imprimir o guardar</button></section>
+        </div>
+        <nav class="screen-nav" aria-label="Menú del terminal"><button id="navHome" type="button">⌂<small>Venta</small></button><button id="navBatch" type="button">▤<small>Lote</small></button><button id="navHistory" type="button">▦<small>Historial</small></button></nav>
+      </div></div>
+      <div class="chip-slot" id="chipTarget"><span></span></div><div class="device-foot"><span>POS-001</span><span>SIMULADOR · SIN DINERO REAL</span></div>
+    </div>
+  </div>
+  <div id="result" class="sr-only" role="status" aria-live="polite">Esperando operación.</div>
+</main>
+</body>
+</html>
