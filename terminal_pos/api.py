@@ -19,7 +19,7 @@ def make_handlers(directory, mobile_host=None, mobile_port=8876):
     page = Path(__file__).with_name("index.html")
     stylesheet = Path(__file__).with_name("style.css")
     script = Path(__file__).with_name("app.js")
-    guide = Path(__file__).with_name("README.md")
+    guide = Path(__file__).resolve().parent.parent / "README.md"
 
     class JsonHandler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):

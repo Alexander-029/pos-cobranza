@@ -1,12 +1,12 @@
-# Simuladores POS educativos
+# Terminal POS simulado
 
-Este repositorio contiene **dos simuladores independientes**. El desarrollo actual es el [terminal de pagos con tarjeta y QR](terminal_pos/README.md), que se abre en el puerto **8875**. El cobrador de facturas de ANDE, ESSAP y Tigo descrito más abajo es el prototipo anterior y usa el puerto **8765**. Ninguno mueve dinero real.
+Simulación educativa de una terminal de comercio para cobros con tarjetas de débito, crédito y QR. La pantalla permite ingresar un importe, presentar una tarjeta ficticia al lector sin contacto o a la ranura del chip, responder un PIN cuando el emisor simulado lo solicita, ver el resultado y emitir un ticket. También incluye acceso de empleados, lote y «Mis cobros».
 
-Las pruebas ejecutadas y sus límites están en la [verificación del terminal](docs/verificacion-terminal-pos.md).
+**No se conecta con Dinelco, bancos ni redes de tarjetas. No mueve dinero real.** El diseño visual es genérico: no reproduce el software ni el comportamiento certificado de un equipo Dinelco. El [diagrama de procesos](docs/diagrama-procesos-terminal.md) se abre en la vista previa Markdown de VS Code con **Ctrl+Shift+V**.
 
-## Ejecutar el terminal de pagos (Windows / PowerShell)
+## Requisitos y ejecución
 
-Requiere Python 3.10 o posterior y Git. En una consola nueva:
+Python 3.10 o posterior y Git. En Windows PowerShell:
 
 ```powershell
 git clone https://github.com/Alexander-029/pos-cobranza.git
@@ -16,51 +16,40 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m terminal_pos.api --mobile-host 127.0.0.1
 ```
 
-Dejá abierta esa consola y entrá a `http://127.0.0.1:8875/`. Si el entorno virtual se creó sin `pip`, ejecutá `.\.venv\Scripts\python.exe -m ensurepip --upgrade` y repetí la instalación. Para escanear el QR con un celular de la misma red, usá la IPv4 Wi-Fi de tu PC en `--mobile-host` en lugar de `127.0.0.1`; la página de confirmación escuchará en `TU_IP:8876`.
+Si `.venv` ya existe, no hace falta crearlo otra vez. Si le falta `pip`, ejecutá `.\.venv\Scripts\python.exe -m ensurepip --upgrade` y repetí la instalación. Dejá abierta la consola y abrí **http://127.0.0.1:8875/**. Las bases SQLite se crean automáticamente en `terminal_pos/data/` y están excluidas de Git.
 
-**Prueba mínima de cobro exitoso:** ingresá como empleado `1` con PIN `111111`; abrí un lote en **Lote**; volvé a **Venta**, marcá **Gs. 1.000**, elegí **Tarjeta** y arrastrá la tarjeta de débito al lector superior. Deberían aparecer «Cobro aprobado», el papel simulado y un ticket. Para probar chip, insertá la tarjeta abajo e ingresá su PIN ficticio `1234`. Si ese recorrido falla, anotá el paso y el mensaje mostrado. Los perfiles y límites completos están en la [guía del terminal](terminal_pos/README.md).
+El QR con `--mobile-host 127.0.0.1` se puede probar en el mismo equipo. Para confirmarlo desde un celular en la misma red, usá la IPv4 Wi-Fi de la PC en `--mobile-host`; la página móvil escuchará en `TU_IP:8876`, mientras la pantalla del POS seguirá en `127.0.0.1:8875`. No expongas estos puertos a Internet.
 
-## Prototipo anterior: cobrador de facturas
+## Probar un cobro
 
-Simula una boca de cobranzas que consulta facturas de ANDE, ESSAP y Tigo Hogar. La interfaz conserva el estilo sobrio de tablas del prototipo aprobado. **No hay conexión con esas empresas ni movimiento de dinero real.**
+1. Ingresá con el empleado `1` y PIN `111111`.
+2. Abrí un lote en **Lote**, volvé a **Venta** e ingresá Gs. 1.000.
+3. Elegí **Tarjeta** y arrastrá la tarjeta de débito al lector superior. Si arrastrar no funciona, elegí la tarjeta y tocá el lector; también admite Enter/Espacio. Para chip, presentala en la ranura inferior e ingresá el PIN ficticio `1234` cuando se solicite.
+4. Una aprobación muestra el papel simulado y habilita el ticket. «Mis cobros» contiene solo las operaciones del empleado autenticado. El lote reúne las operaciones de la terminal y solo quien lo abrió puede cerrarlo.
 
-## Ejecutar
+El empleado `2` usa PIN `222222` y permite comprobar el aislamiento del historial. El PIN de acceso del empleado es distinto del PIN de la tarjeta.
 
-Requiere Python 3.10 o posterior. Segno genera los códigos QR localmente; se verificó `segno==1.6.6` con `pip-audit` sin vulnerabilidades conocidas.
+| Tarjeta ficticia | Tipo | Disponible inicial | PIN de tarjeta | Caso de prueba |
+|---|---|---:|---:|---|
+| `DEB-001` | Débito | Gs. 150.000 | `1234` | Sin contacto pide PIN desde Gs. 100.000 en este perfil. |
+| `DEB-002` | Débito | Gs. 80.000 | `4321` | Pide insertar chip después de intentar sin contacto. |
+| `CRE-001` | Crédito | Gs. 200.000 | `2468` | Contado o tres cuotas. |
+| `CRE-002` | Crédito | Gs. 50.000 | `1357` | Sin contacto pide PIN para cualquier importe. |
 
-```powershell
-cd C:\ruta\al\pos-cobranza
-python -m pip install -r requirements.txt
-python server.py --mobile-host TU_IP_WIFI
-```
+Los saldos, límites y reglas de PIN son datos ficticios. Las zonas de lectura se inspiraron en las guías oficiales del [PAX A920 Pro](https://www.pax.us/support/documents/a920-pro-quick-setup-guide/) y del [Ingenico Move 5000](https://ingenico.com/sites/default/files/resource-document/2022-10/MOVE5000%20-%20user%20guide%20-%20OCT22.pdf); no se verificó un manual del modelo Dinelco de la imagen de referencia.
 
-Obtené `TU_IP_WIFI` con `ipconfig` (IPv4 del adaptador Wi-Fi; por ejemplo `10.0.9.176`). El POS del cajero queda en `http://127.0.0.1:8765`; solo la página de confirmación QR escucha en `TU_IP_WIFI:8766`. El teléfono debe estar en la misma red y poder acceder a ese puerto. Si Windows bloquea las conexiones entrantes, un administrador debe autorizar **solo TCP 8766 desde la subred local** para el perfil de red activo. No uses datos reales: esta demostración usa HTTP local y PIN públicos. Sin `--mobile-host`, el POS funciona en modo local y el QR queda deshabilitado. Para reiniciar la simulación, detené el servidor y borrá los dos archivos de `data/` (esto elimina todos los cobros locales).
+## Estructura
 
-## Recorrido para probar
+- `terminal_pos/index.html`, `style.css`, `app.js`: vista del terminal e interacción. La animación no autoriza pagos.
+- `terminal_pos/api.py`: controlador HTTP; `auth.py`: acceso de empleados; `service.py`: reglas de cobro; `db.py`: esquema y datos iniciales.
+- `terminal_pos/data/terminal.db`: empleados, sesiones, lotes, operaciones y QR. `terminal_pos/data/emisor_simulado.db`: cuentas y tarjetas de prueba. Las autorizaciones usan una transacción SQLite con ambas bases para evitar un doble débito.
 
-1. Iniciá sesión con Lucía Benítez (PIN `1234`) o Diego Rojas (PIN `5678`). Son credenciales públicas **solo para esta demostración**.
-2. Abrí el archivo separado [DATOS_DE_PRUEBA.md](DATOS_DE_PRUEBA.md), elegí una referencia ficticia y consultala en el POS. El archivo muestra los datos iniciales; los saldos cambian después de cada cobro.
-3. Abrí tu caja, elegí una o más facturas pendientes y un medio. Efectivo y tarjeta son registros simulados; **QR** genera una solicitud temporal para escanear con el celular. La página móvil muestra servicio, referencia, facturas y total; tocá **Confirmar pago simulado**.
-4. El POS detecta la confirmación y muestra el comprobante. La factura deja de estar pendiente. **Mis cobros** muestra solo los cobros del empleado que ingresó; no expone pagos de otros locales ni de otros empleados.
-5. Cerrá la caja para ver cantidad y total por medio; después podés cerrar sesión. Una solicitud QR vence a los cinco minutos o al cerrar la caja y no puede confirmar dos cobros.
-
-## Modelo y límites
-
-- Separación sencilla tipo MVC: las tablas SQLite son el **modelo**, las funciones y rutas de `server.py` controlan las operaciones, e `index.html` es la **vista** con interacción en JavaScript. No se añade un framework para imponer carpetas vacías.
-- `data/prestadoras_simuladas.db`: cuentas, facturas y pagos de las prestadoras **ficticias**. Una cuenta se identifica por `(prestadora, referencia)`. El mismo titular puede tener servicios distintos sin mezclar facturas.
-- Cada factura tiene `disponible_desde` (fecha local del servidor). El POS solo muestra y cobra facturas pendientes a partir de esa fecha, incluso si se intenta saltar la pantalla y llamar a la API de cobro o QR. `vencimiento` es independiente: una factura ya disponible puede pagarse antes de vencer. [DATOS_DE_PRUEBA.md](DATOS_DE_PRUEBA.md) incluye un `INSERT` SQL para probar una factura futura. El día 28 es solo el valor elegido para esa prueba, no una regla atribuida a ANDE, ESSAP o Tigo.
-- `data/pos.db`: empleados, hashes de sus PIN, cajas, catálogo de medios, cobros, solicitudes QR y aplicaciones de cada cobro a una o más facturas. No exige que el titular se registre en el POS. Las bases existentes se migran conservando los cobros anteriores.
-- El inicio de sesión usa una cookie de sesión local para asociar las operaciones al empleado que ingresó. Los PIN de demostración son públicos y no equivalen a seguridad de producción.
-- `GET /api/lookup` consulta solo las facturas pendientes de la prestadora simulada. `POST /api/charge` confirma efectivo o tarjeta en ambas bases y registra las aplicaciones. `GET /api/history` filtra por el empleado de la sesión. `POST /api/qr/start` crea el QR y la página móvil confirma el pago simulado. Son endpoints **de este simulador**, no APIs oficiales.
-- El backend valida la prestadora, la referencia, la pertenencia y el estado pendiente de cada factura; hace el cobro en una transacción SQLite y usa `request_id` para no duplicar reintentos.
-- Las dos bases están anexadas a una misma conexión SQLite y usan journal `DELETE` para que el cambio conjunto sea atómico ante una caída, según la [documentación de SQLite](https://sqlite.org/lang_attach.html).
-- Solo admite pago completo de facturas ya emitidas y un medio por cobro. Tarjeta y QR **no autorizan una transacción bancaria**: el cajero o el celular declaran la confirmación dentro de la simulación.
-- No incluye gestión real de usuarios, recuperación de credenciales, control de intentos, conciliación bancaria, integración real ni comprobante fiscal. La página móvil solo permite consultar y confirmar una solicitud con token temporal; el POS completo permanece en `127.0.0.1`.
+Los PIN no se guardan en claro y solo se conservan los últimos cuatro dígitos ficticios de la tarjeta. El ticket se reconstruye desde la operación persistida. Las credenciales de prueba son públicas y el servidor usa HTTP local: **no es un sistema de pagos con seguridad de producción**.
 
 ## Pruebas
 
 ```powershell
-python -m unittest -v test_server.py
+.\.venv\Scripts\python.exe -m unittest test_terminal_pos.py test_terminal_api.py
 ```
 
-Las pruebas usan bases temporales: no cambian tus datos de `data/`.
+Las pruebas crean bases temporales; no modifican `terminal_pos/data/`.

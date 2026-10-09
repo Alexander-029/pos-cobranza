@@ -1,6 +1,6 @@
 # Diagrama de procesos del terminal POS simulado
 
-Este diagrama describe el **nuevo terminal de pagos propuesto**. Todavía no representa el funcionamiento de la aplicación de facturas que está en la raíz del repositorio. Los cobros, tarjetas, PIN y autorizaciones del diagrama son ficticios.
+Este diagrama describe el terminal de pagos implementado en `terminal_pos/`. Los cobros, tarjetas, PIN y autorizaciones son ficticios.
 
 ## Verlo en VS Code
 
@@ -10,9 +10,13 @@ Abrí este archivo `.md` y presioná **Ctrl+Shift+V** para abrir la vista previa
 
 ```mermaid
 flowchart TD
-    A["Cliente llega; operador ingresa el importe"] --> B{"¿Tarjeta o QR?"}
+    L["Empleado inicia sesión"] --> O{"¿Hay lote abierto?"}
+    O -->|No| AP["Empleado abre el lote de la terminal"]
+    O -->|Sí| A
+    AP --> A["Cliente llega; empleado ingresa el importe"]
+    A --> B{"¿Tarjeta o QR?"}
 
-    B -->|Tarjeta| C["Acercar, insertar o deslizar tarjeta ficticia"]
+    B -->|Tarjeta| C["Acercar sin contacto o insertar chip ficticio"]
     C --> D{"¿Tarjeta activa y lectura admitida?"}
     D -->|No| R["Registrar rechazo; no sumar al total"]
     D -->|Sí| E{"¿Crédito con cuotas habilitadas?"}
@@ -52,4 +56,4 @@ La verificación del titular (por ejemplo, PIN) y la autorización del importe s
 
 ## Después de la venta
 
-El operador puede consultar operaciones y reimprimir un ticket. Puede anular una venta aprobada mientras el lote esté abierto. Al terminar el turno, cierra el lote y consulta el total de **ventas aprobadas menos anulaciones**, desglosado por medio. El cierre no ocurre automáticamente después de cada cliente ni representa un depósito bancario.
+Cada empleado puede consultar y reimprimir **sus** tickets, y anular una venta propia aprobada mientras el lote siga abierto. El lote pertenece a la terminal y puede reunir cobros de varios empleados. Solo quien lo abrió puede cerrarlo; el total es **ventas aprobadas menos anulaciones**, desglosado por medio. El cierre no ocurre automáticamente después de cada cliente ni representa un depósito bancario.
